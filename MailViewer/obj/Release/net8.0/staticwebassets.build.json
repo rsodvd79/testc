@@ -1,0 +1,58 @@
+{
+  "Version": 1,
+  "Hash": "bGeccKljym5kmrVCV7qX/DQMw4EIrVTCzfEiiaaoGLE=",
+  "Source": "MailViewer",
+  "BasePath": "_content/MailViewer",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "MailViewer/wwwroot",
+      "Source": "MailViewer",
+      "ContentRoot": "/Users/daviderosa/testc/MailViewer/wwwroot/",
+      "BasePath": "_content/MailViewer",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": [
+    {
+      "Identity": "/Users/daviderosa/testc/MailViewer/wwwroot/admin.html",
+      "SourceId": "MailViewer",
+      "SourceType": "Discovered",
+      "ContentRoot": "/Users/daviderosa/testc/MailViewer/wwwroot/",
+      "BasePath": "_content/MailViewer",
+      "RelativePath": "admin.html",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot/admin.html"
+    },
+    {
+      "Identity": "/Users/daviderosa/testc/MailViewer/wwwroot/index.html",
+      "SourceId": "MailViewer",
+      "SourceType": "Discovered",
+      "ContentRoot": "/Users/daviderosa/testc/MailViewer/wwwroot/",
+      "BasePath": "_content/MailViewer",
+      "RelativePath": "index.html",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot/index.html"
+    }
+  ]
+}

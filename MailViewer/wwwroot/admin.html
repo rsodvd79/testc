@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Config MailFetcher</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 16px; max-width: 960px; }
+    h1 { margin: 0 0 16px; }
+    fieldset { border: 1px solid #e2e8f0; padding: 12px; margin-bottom: 16px; }
+    label { display: block; font-size: 12px; color: #475569; }
+    input[type=text], input[type=number], input[type=password] { width: 100%; padding: 8px; margin: 4px 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+    .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .actions { display: flex; gap: 8px; }
+    button { background: #0f172a; color: white; padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #e2e8f0; padding: 6px; font-size: 14px; }
+    pre { background: #0b1020; color: #e2e8f0; padding: 8px; border-radius: 6px; height: 240px; overflow: auto; }
+  </style>
+  <script>
+    let config = { OutputRoot: 'Data', Accounts: [] };
+    let scheduler = { Enabled: false, IntervalMinutes: 30 };
+    let basicToken = '';
+    const askCreds = () => { const u = prompt('Username'); const p = prompt('Password'); basicToken = 'Basic ' + btoa(u + ':' + p); };
+    const authHeader = () => ({ 'Authorization': basicToken });
+
+    async function loadConfig() {
+      if (!basicToken) askCreds();
+      const res = await fetch('/api/config', { headers: authHeader() });
+      if (res.ok) config = await res.json();
+      render();
+    }
+    async function loadScheduler() {
+      const res = await fetch('/api/scheduler', { headers: authHeader() });
+      if (res.ok) scheduler = await res.json();
+      document.getElementById('schedEnabled').checked = !!scheduler.Enabled;
+      document.getElementById('schedInterval').value = scheduler.IntervalMinutes || 30;
+    }
+    async function saveScheduler() {
+      const body = {
+        Enabled: document.getElementById('schedEnabled').checked,
+        IntervalMinutes: parseInt(document.getElementById('schedInterval').value || '30', 10)
+      };
+      await fetch('/api/scheduler', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() }, body: JSON.stringify(body) });
+      loadScheduler();
+    }
+
+    function render() {
+      document.getElementById('outputRoot').value = config.OutputRoot || 'Data';
+      const tbody = document.getElementById('accounts');
+      tbody.innerHTML = '';
+      (config.Accounts || []).forEach((a, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="text" value="${a.Name||''}" data-idx="${idx}" data-key="Name"/></td>
+          <td><input type="text" value="${a.Host||''}" data-idx="${idx}" data-key="Host"/></td>
+          <td><input type="number" value="${a.Port??993}" data-idx="${idx}" data-key="Port"/></td>
+          <td><input type="checkbox" ${a.UseSsl!==false?'checked':''} data-idx="${idx}" data-key="UseSsl"/></td>
+          <td><input type="text" value="${a.Username||''}" data-idx="${idx}" data-key="Username"/></td>
+          <td><input type="password" value="${a.Password||''}" data-idx="${idx}" data-key="Password"/></td>
+          <td><button onclick="removeAccount(${idx})">Rimuovi</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('input').forEach(input => {
+        input.onchange = (e) => {
+          const idx = +e.target.getAttribute('data-idx');
+          const key = e.target.getAttribute('data-key');
+          if (e.target.type === 'checkbox') config.Accounts[idx][key] = e.target.checked;
+          else if (e.target.type === 'number') config.Accounts[idx][key] = +e.target.value;
+          else config.Accounts[idx][key] = e.target.value;
+        };
+      });
+    }
+    function addAccount() {
+      config.Accounts = config.Accounts || [];
+      config.Accounts.push({ Name: '', Host: '', Port: 993, UseSsl: true, Username: '', Password: '' });
+      render();
+    }
+    function removeAccount(i) {
+      config.Accounts.splice(i,1);
+      render();
+    }
+    async function save() {
+      config.OutputRoot = document.getElementById('outputRoot').value || 'Data';
+      const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() }, body: JSON.stringify(config, null, 2) });
+      alert(res.ok ? 'Salvato' : 'Errore salvataggio');
+    }
+
+    let pollTimer = null;
+    async function startFetch() {
+      await fetch('/api/run-fetch/start', { method: 'POST', headers: authHeader() });
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(refreshStatus, 1000);
+      refreshStatus();
+    }
+    async function stopFetch() {
+      await fetch('/api/run-fetch/stop', { method: 'POST', headers: authHeader() });
+      refreshStatus();
+    }
+    async function refreshStatus() {
+      const res = await fetch('/api/run-fetch/status', { headers: authHeader() });
+      if (!res.ok) return;
+      const s = await res.json();
+      document.getElementById('running').textContent = s.running ? 'In esecuzione' : 'Fermo';
+      const pre = document.getElementById('log');
+      pre.textContent = s.logs.join('\n');
+      pre.scrollTop = pre.scrollHeight;
+      if (!s.running && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    async function loadAdminAuth() {
+      const res = await fetch('/api/adminauth', { headers: authHeader() });
+      if (res.ok) {
+        const a = await res.json();
+        document.getElementById('adminUser').value = a.Username || '';
+      }
+    }
+    async function saveAdminAuth() {
+      const u = document.getElementById('adminUser').value;
+      const p = document.getElementById('adminPass').value;
+      const pc = document.getElementById('adminPassConfirm').value;
+      if (p && p !== pc) { alert('Le password non coincidono'); return; }
+      const res = await fetch('/api/adminauth', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() }, body: JSON.stringify({ Username: u, Password: p, PasswordConfirm: pc }) });
+      if (res.ok) alert('Credenziali aggiornate. Effettua di nuovo il login.');
+      basicToken = '';
+      askCreds();
+    }
+
+    window.onload = () => { loadConfig(); loadScheduler(); loadAdminAuth(); refreshStatus(); };
+  </script>
+</head>
+<body>
+  <h1>Configurazione MailFetcher</h1>
+  <fieldset>
+    <div class="actions">
+      <button onclick="startFetch()">Esegui fetch ora</button>
+      <button onclick="stopFetch()">Stop</button>
+      <span style="margin-left:8px">Stato: <strong id="running">-</strong></span>
+      <a href="/index.html" style="margin-left:auto">Torna al Viewer</a>
+    </div>
+    <pre id="log"></pre>
+  </fieldset>
+  <fieldset>
+    <legend>AdminAuth</legend>
+    <label>Username</label>
+    <input id="adminUser" type="text" />
+    <label>Password (lascia vuoto per non cambiare)</label>
+    <input id="adminPass" type="password" />
+    <label>Conferma Password</label>
+    <input id="adminPassConfirm" type="password" />
+    <div class="actions">
+      <button onclick="saveAdminAuth()">Salva Credenziali</button>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Scheduler</legend>
+    <label><input id="schedEnabled" type="checkbox"/> Abilita esecuzione periodica</label>
+    <label>Intervallo (minuti)</label>
+    <input id="schedInterval" type="number" min="1" step="1" value="30" />
+    <div class="actions">
+      <button onclick="saveScheduler()">Salva Scheduler</button>
+    </div>
+  </fieldset>
+  <fieldset>
+    <label>Cartella Output (OutputRoot)</label>
+    <input id="outputRoot" type="text" placeholder="Data" />
+  </fieldset>
+  <fieldset>
+    <div class="actions">
+      <button onclick="addAccount()">Aggiungi Casella</button>
+      <button onclick="save()">Salva</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th><th>Host</th><th>Porta</th><th>SSL</th><th>Username</th><th>Password</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="accounts"></tbody>
+    </table>
+  </fieldset>
+</body>
+</html>
+
+

@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mail Viewer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; height: 100vh; display: grid; grid-template-rows: 48px 1fr; }
+    header { background: #0f172a; color: white; display: flex; align-items: center; padding: 0 12px; }
+    main { display: grid; grid-template-columns: 240px 280px 1fr; height: 100%; }
+    aside, nav, section { border-right: 1px solid #e2e8f0; overflow: auto; }
+    h2 { font-size: 14px; margin: 8px 12px; color: #475569; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
+    li:hover { background: #f8fafc; }
+    .msg { padding: 12px; }
+    .meta { font-size: 12px; color: #475569; margin-bottom: 8px; }
+    .subject { font-weight: 600; margin-bottom: 8px; }
+    iframe { width: 100%; height: calc(100% - 140px); border: 0; background: white; }
+    .attachments a { display: inline-block; margin-right: 8px; font-size: 12px; }
+  </style>
+  <script>
+    async function loadAccounts() {
+      const res = await fetch('/api/accounts');
+      const accounts = await res.json();
+      const ul = document.getElementById('accounts');
+      ul.innerHTML = '';
+      accounts.forEach(a => {
+        const li = document.createElement('li'); li.textContent = a; li.onclick = () => selectAccount(a);
+        ul.appendChild(li);
+      });
+    }
+    async function selectAccount(a) {
+      window.currentAccount = a;
+      const res = await fetch(`/api/folders/${encodeURIComponent(a)}`);
+      const folders = await res.json();
+      const ul = document.getElementById('folders');
+      ul.innerHTML = '';
+      folders.sort().forEach(f => {
+        const li = document.createElement('li'); li.textContent = f; li.onclick = () => selectFolder(f);
+        ul.appendChild(li);
+      });
+    }
+    async function selectFolder(f) {
+      window.currentFolder = f;
+      const res = await fetch(`/api/messages/${encodeURIComponent(window.currentAccount)}/${encodeURIComponent(f)}`);
+      const msgs = await res.json();
+      const ul = document.getElementById('messages');
+      ul.innerHTML = '';
+      msgs.forEach(m => {
+        const li = document.createElement('li'); li.textContent = `${m.id} (${Math.round(m.size/1024)} KB)`; li.onclick = () => selectMessage(m.file);
+        ul.appendChild(li);
+      });
+    }
+    async function selectMessage(file) {
+      const path = `${window.currentFolder}/${file}`;
+      const res = await fetch(`/api/message/${encodeURIComponent(window.currentAccount)}/${encodeURIComponent(path)}`);
+      const data = await res.json();
+      document.getElementById('subject').textContent = data.headers.subject || '';
+      document.getElementById('meta').textContent = `${data.headers.from} → ${data.headers.to} • ${data.headers.date}`;
+      const doc = document.getElementById('body').contentDocument;
+      doc.open(); doc.write(data.body || '<pre style="white-space:pre-wrap"></pre>'); doc.close();
+      const att = document.getElementById('attachments'); att.innerHTML = '';
+      data.attachments.forEach(a => {
+        const link = document.createElement('a'); link.textContent = a.name; link.href = `/api/attachment/${encodeURIComponent(window.currentAccount)}/${encodeURIComponent(path)}?index=${a.index}`; link.target = '_blank';
+        att.appendChild(link);
+      });
+    }
+    window.onload = loadAccounts;
+  </script>
+  </head>
+<body>
+  <header>
+    <strong>Mail Viewer</strong>
+  </header>
+  <main>
+    <aside>
+      <h2>Caselle</h2>
+      <ul id="accounts"></ul>
+    </aside>
+    <nav>
+      <h2>Cartelle</h2>
+      <ul id="folders"></ul>
+    </nav>
+    <section>
+      <div class="msg">
+        <div class="subject" id="subject"></div>
+        <div class="meta" id="meta"></div>
+        <div class="attachments" id="attachments"></div>
+      </div>
+      <iframe id="body"></iframe>
+    </section>
+  </main>
+</body>
+</html>
+
+
