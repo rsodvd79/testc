@@ -1,9 +1,10 @@
-using MailKit.Net.Imap;
+﻿using MailKit.Net.Imap;
 using MailKit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using System.Collections.Generic;
 
 namespace MailFetcher;
 
@@ -114,14 +115,36 @@ public static class Program
 
         await client.Inbox.OpenAsync(FolderAccess.ReadOnly);
 
+        var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        async Task MirrorTreeAsync(IMailFolder folder)
+        {
+            if (!processed.Add(folder.FullName))
+                return;
+
+            await MirrorFolderAsync(client, folder, accountRoot, logger);
+
+            try
+            {
+                foreach (var sub in await folder.GetSubfoldersAsync(false))
+                {
+                    await MirrorTreeAsync(sub);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Unable to enumerate subfolders for account {Account}", accountLabel);
+            }
+        }
+
         if (client.PersonalNamespaces.Count > 0)
         {
             try
             {
                 var personalRoot = client.GetFolder(client.PersonalNamespaces[0]);
-                foreach (var folder in await personalRoot.GetSubfoldersAsync(true))
+                foreach (var folder in await personalRoot.GetSubfoldersAsync(false))
                 {
-                    await MirrorFolderAsync(client, folder, accountRoot, logger);
+                    await MirrorTreeAsync(folder);
                 }
             }
             catch (ImapCommandException ex)
@@ -138,7 +161,7 @@ public static class Program
             logger.LogWarning("No personal namespaces returned for account {Account}", accountLabel);
         }
 
-        await MirrorFolderAsync(client, client.Inbox, accountRoot, logger);
+        await MirrorTreeAsync(client.Inbox);
 
         await client.DisconnectAsync(true);
     }

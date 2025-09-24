@@ -7,8 +7,9 @@
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; height: 100vh; display: grid; grid-template-rows: 48px 1fr; }
     header { background: #0f172a; color: white; display: flex; align-items: center; padding: 0 12px; }
-    main { display: grid; grid-template-columns: 240px 280px 1fr; height: 100%; }
+    main { display: grid; grid-template-columns: 240px 220px 260px 1fr; height: 100%; }
     aside, nav, section { border-right: 1px solid #e2e8f0; overflow: auto; }
+    section { border-right: none; }
     h2 { font-size: 14px; margin: 8px 12px; color: #475569; }
     ul { list-style: none; padding: 0; margin: 0; }
     li { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
@@ -22,7 +23,7 @@
   <script>
     const encodePathSegments = (value) => {
       if (!value) return '';
-      const parts = Array.isArray(value) ? value : value.split('/');
+      const parts = Array.isArray(value) ? value : value.replace(/\\/g, '/').split('/');
       return parts.filter(part => part !== undefined && part !== null && part !== '').map(part => encodeURIComponent(part)).join('/');
     };
 
@@ -44,14 +45,23 @@
       const ul = document.getElementById('folders');
       ul.innerHTML = '';
       folders.sort().forEach(f => {
-        const li = document.createElement('li'); li.textContent = f; li.onclick = () => selectFolder(f);
+        const normalized = f.replace(/\\/g, '/');
+        const segments = normalized.split('/');
+        const depth = Math.max(0, segments.length - 1);
+        const name = segments[segments.length - 1] || normalized;
+        const li = document.createElement('li');
+        li.textContent = name;
+        li.style.paddingLeft = `${12 + depth * 16}px`;
+        li.dataset.path = normalized;
+        li.onclick = () => selectFolder(normalized);
         ul.appendChild(li);
       });
     }
 
     async function selectFolder(f) {
-      window.currentFolder = f;
-      const folderParam = encodePathSegments(f);
+      const normalized = f.replace(/\\/g, '/');
+      window.currentFolder = normalized;
+      const folderParam = encodePathSegments(normalized);
       const url = `/api/messages/${encodeURIComponent(window.currentAccount)}/${folderParam}`;
       const res = await fetch(url);
       if (!res.ok) {
@@ -63,7 +73,14 @@
       ul.innerHTML = '';
       msgs.forEach(m => {
         const sizeKb = Math.max(1, Math.round(m.size / 1024));
-        const li = document.createElement('li'); li.textContent = `${m.id} (${sizeKb} KB)`; li.onclick = () => selectMessage(m.file);
+        const display = m.subject && m.subject.trim() !== '' ? m.subject.trim() : m.id;
+        const li = document.createElement('li');
+        li.textContent = `${display} (${sizeKb} KB)`;
+        if (m.sent) {
+          li.textContent += ` - ${m.sent}`;
+        }
+        li.title = li.textContent;
+        li.onclick = () => selectMessage(m.file);
         ul.appendChild(li);
       });
     }
@@ -101,9 +118,13 @@
       <h2>Caselle</h2>
       <ul id="accounts"></ul>
     </aside>
-    <nav>
+    <nav class="folders">
       <h2>Cartelle</h2>
       <ul id="folders"></ul>
+    </nav>
+    <nav class="messages">
+      <h2>Messaggi</h2>
+      <ul id="messages"></ul>
     </nav>
     <section>
       <div class="msg">
@@ -116,3 +137,4 @@
   </main>
 </body>
 </html>
+

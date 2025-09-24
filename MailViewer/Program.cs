@@ -66,7 +66,18 @@ app.MapGet("/api/messages/{account}/{*folder}", (string account, string folder) 
     var folderPath = Path.Combine(dataRoot, account, folder);
     if (!Directory.Exists(folderPath)) return Results.NotFound();
     var emls = Directory.EnumerateFiles(folderPath, "*.eml")
-        .Select(f => new { id = Path.GetFileNameWithoutExtension(f), file = Path.GetFileName(f), size = new FileInfo(f).Length })
+        .Select(f => {
+            var info = new FileInfo(f);
+            var (subject, sent) = ReadMessagePreview(f);
+            return new
+            {
+                id = Path.GetFileNameWithoutExtension(f),
+                file = info.Name,
+                size = info.Length,
+                subject,
+                sent
+            };
+        })
         .OrderByDescending(m => m.id)
         .ToArray();
     return Results.Ok(emls);
@@ -263,7 +274,7 @@ app.MapPost("/api/run-fetch/start", (HttpContext ctx) =>
     if (!adminEnabled) return Results.NotFound();
     if (!IsAuthorized(ctx)) return Results.Unauthorized();
     if (currentProcess != null && !currentProcess.HasExited)
-        return Results.BadRequest("Fetcher già in esecuzione");
+        return Results.BadRequest("Fetcher gia in esecuzione");
 
     logBuffer = new ConcurrentQueue<string>();
     var slnRoot = PathHelpers.GetSolutionRoot();
@@ -423,6 +434,26 @@ app.MapPost("/api/scheduler", async (HttpContext ctx) =>
 
 app.Run();
 
+static (string? subject, string? sent) ReadMessagePreview(string path)
+{
+    try
+    {
+        using var stream = File.OpenRead(path);
+        var message = MimeMessage.Load(stream);
+        var subject = string.IsNullOrWhiteSpace(message.Subject) ? null : message.Subject.Trim();
+        string? sent = null;
+        if (message.Date != DateTimeOffset.MinValue)
+        {
+            sent = message.Date.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+        }
+        return (subject, sent);
+    }
+    catch
+    {
+        return (null, null);
+    }
+}
+
 static class PathHelpers
 {
     public static string GetSolutionRoot()
@@ -442,5 +473,3 @@ public class SchedulerState
     public bool Enabled { get; set; }
     public int IntervalMinutes { get; set; } = 30;
 }
-
-
