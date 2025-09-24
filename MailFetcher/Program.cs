@@ -1,6 +1,7 @@
-﻿using MailKit.Net.Imap;
+using MailKit.Net.Imap;
 using MailKit;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using System.Text;
 
@@ -26,10 +27,38 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        var config = new ConfigurationBuilder()
+        var configBuilder = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true)
-            .AddJsonFile("appsettings.Local.json", optional: true)
+            .AddJsonFile("appsettings.Local.json", optional: true);
+
+        string? configBase = null;
+        var configDir = Environment.GetEnvironmentVariable("MAILFETCHER_CONFIG_DIR");
+        if (!string.IsNullOrWhiteSpace(configDir))
+        {
+            configDir = Path.GetFullPath(configDir);
+            if (Directory.Exists(configDir))
+            {
+                configBase = configDir;
+                var provider = new PhysicalFileProvider(configDir);
+                configBuilder.AddJsonFile(provider, "appsettings.json", optional: true, reloadOnChange: false);
+                configBuilder.AddJsonFile(provider, "appsettings.Local.json", optional: true, reloadOnChange: false);
+            }
+        }
+
+        if (configBase is null)
+        {
+            var projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../.."));
+            if (Directory.Exists(projectDir))
+            {
+                configBase = projectDir;
+                var provider = new PhysicalFileProvider(projectDir);
+                configBuilder.AddJsonFile(provider, "appsettings.json", optional: true, reloadOnChange: false);
+                configBuilder.AddJsonFile(provider, "appsettings.Local.json", optional: true, reloadOnChange: false);
+            }
+        }
+
+        var config = configBuilder
             .AddEnvironmentVariables(prefix: "MAILFETCHER_")
             .Build();
 
@@ -52,7 +81,10 @@ public static class Program
             return 1;
         }
 
-        var outputRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, fetcherConfig.OutputRoot));
+        var outputRootSetting = string.IsNullOrWhiteSpace(fetcherConfig.OutputRoot) ? "Data" : fetcherConfig.OutputRoot;
+        var outputRoot = Path.IsPathRooted(outputRootSetting)
+            ? Path.GetFullPath(outputRootSetting)
+            : Path.GetFullPath(Path.Combine(configBase ?? AppContext.BaseDirectory, outputRootSetting));
         Directory.CreateDirectory(outputRoot);
 
         foreach (var account in fetcherConfig.Accounts)
@@ -75,18 +107,35 @@ public static class Program
 
     private static async Task FetchAccountAsync(ImapAccountConfig account, string accountRoot, ILogger logger)
     {
+        var accountLabel = string.IsNullOrWhiteSpace(account.Name) ? account.Username : account.Name;
         using var client = new ImapClient();
         await client.ConnectAsync(account.Host, account.Port, account.UseSsl);
         await client.AuthenticateAsync(account.Username, account.Password);
 
         await client.Inbox.OpenAsync(FolderAccess.ReadOnly);
 
-        var personal = client.GetFolder(client.PersonalNamespaces[0]);
-        await personal.OpenAsync(FolderAccess.ReadOnly);
-
-        foreach (var folder in await personal.GetSubfoldersAsync(true))
+        if (client.PersonalNamespaces.Count > 0)
         {
-            await MirrorFolderAsync(client, folder, accountRoot, logger);
+            try
+            {
+                var personalRoot = client.GetFolder(client.PersonalNamespaces[0]);
+                foreach (var folder in await personalRoot.GetSubfoldersAsync(true))
+                {
+                    await MirrorFolderAsync(client, folder, accountRoot, logger);
+                }
+            }
+            catch (ImapCommandException ex)
+            {
+                logger.LogWarning(ex, "Unable to enumerate personal folders for account {Account}", accountLabel);
+            }
+            catch (FolderNotFoundException ex)
+            {
+                logger.LogWarning(ex, "Unable to enumerate personal folders for account {Account}", accountLabel);
+            }
+        }
+        else
+        {
+            logger.LogWarning("No personal namespaces returned for account {Account}", accountLabel);
         }
 
         await MirrorFolderAsync(client, client.Inbox, accountRoot, logger);
@@ -139,3 +188,5 @@ public static class Program
         return sb.ToString();
     }
 }
+
+

@@ -20,6 +20,12 @@
     .attachments a { display: inline-block; margin-right: 8px; font-size: 12px; }
   </style>
   <script>
+    const encodePathSegments = (value) => {
+      if (!value) return '';
+      const parts = Array.isArray(value) ? value : value.split('/');
+      return parts.filter(part => part !== undefined && part !== null && part !== '').map(part => encodeURIComponent(part)).join('/');
+    };
+
     async function loadAccounts() {
       const res = await fetch('/api/accounts');
       const accounts = await res.json();
@@ -30,6 +36,7 @@
         ul.appendChild(li);
       });
     }
+
     async function selectAccount(a) {
       window.currentAccount = a;
       const res = await fetch(`/api/folders/${encodeURIComponent(a)}`);
@@ -41,31 +48,47 @@
         ul.appendChild(li);
       });
     }
+
     async function selectFolder(f) {
       window.currentFolder = f;
-      const res = await fetch(`/api/messages/${encodeURIComponent(window.currentAccount)}/${encodeURIComponent(f)}`);
+      const folderParam = encodePathSegments(f);
+      const url = `/api/messages/${encodeURIComponent(window.currentAccount)}/${folderParam}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error('Failed to load messages', await res.text());
+        return;
+      }
       const msgs = await res.json();
       const ul = document.getElementById('messages');
       ul.innerHTML = '';
       msgs.forEach(m => {
-        const li = document.createElement('li'); li.textContent = `${m.id} (${Math.round(m.size/1024)} KB)`; li.onclick = () => selectMessage(m.file);
+        const sizeKb = Math.max(1, Math.round(m.size / 1024));
+        const li = document.createElement('li'); li.textContent = `${m.id} (${sizeKb} KB)`; li.onclick = () => selectMessage(m.file);
         ul.appendChild(li);
       });
     }
+
     async function selectMessage(file) {
-      const path = `${window.currentFolder}/${file}`;
-      const res = await fetch(`/api/message/${encodeURIComponent(window.currentAccount)}/${encodeURIComponent(path)}`);
+      const rawPath = `${window.currentFolder}/${file}`;
+      const encodedPath = encodePathSegments(rawPath.split('/'));
+      const res = await fetch(`/api/message/${encodeURIComponent(window.currentAccount)}/${encodedPath}`);
+      if (!res.ok) {
+        console.error('Failed to load message', await res.text());
+        return;
+      }
       const data = await res.json();
       document.getElementById('subject').textContent = data.headers.subject || '';
-      document.getElementById('meta').textContent = `${data.headers.from} → ${data.headers.to} • ${data.headers.date}`;
+      document.getElementById('meta').textContent = `${data.headers.from} -> ${data.headers.to} | ${data.headers.date}`;
       const doc = document.getElementById('body').contentDocument;
       doc.open(); doc.write(data.body || '<pre style="white-space:pre-wrap"></pre>'); doc.close();
       const att = document.getElementById('attachments'); att.innerHTML = '';
+      const linkBase = encodedPath;
       data.attachments.forEach(a => {
-        const link = document.createElement('a'); link.textContent = a.name; link.href = `/api/attachment/${encodeURIComponent(window.currentAccount)}/${encodeURIComponent(path)}?index=${a.index}`; link.target = '_blank';
+        const link = document.createElement('a'); link.textContent = a.name; link.href = `/api/attachment/${encodeURIComponent(window.currentAccount)}/${linkBase}?index=${a.index}`; link.target = '_blank';
         att.appendChild(link);
       });
     }
+
     window.onload = loadAccounts;
   </script>
   </head>
@@ -93,5 +116,3 @@
   </main>
 </body>
 </html>
-
-

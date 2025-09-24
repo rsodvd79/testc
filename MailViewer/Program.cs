@@ -17,10 +17,26 @@ var configuration = new ConfigurationBuilder()
     .AddEnvironmentVariables(prefix: "MAILVIEWER_")
     .Build();
 
-var dataRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, configuration["DataRoot"] ?? "../MailFetcher/Data"));
+var fetcherDir = PathHelpers.GetFetcherConfigDirectory();
+var dataRootSetting = configuration["DataRoot"];
+if (string.IsNullOrWhiteSpace(dataRootSetting))
+{
+    dataRootSetting = Path.Combine(fetcherDir, "Data");
+}
+string dataRoot;
+if (Path.IsPathRooted(dataRootSetting))
+{
+    dataRoot = Path.GetFullPath(dataRootSetting);
+}
+else
+{
+    dataRoot = Path.GetFullPath(Path.Combine(fetcherDir, dataRootSetting));
+}
 Directory.CreateDirectory(dataRoot);
 
 var app = builder.Build();
+app.Logger.LogInformation("Using data root {DataRoot}", dataRoot);
+
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -127,9 +143,12 @@ app.MapGet("/api/config", (HttpContext ctx) =>
 {
     if (!adminEnabled) return Results.NotFound();
     if (!IsAuthorized(ctx)) return Results.Unauthorized();
-    var fetcherConfigPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../MailFetcher/appsettings.json"));
-    if (!System.IO.File.Exists(fetcherConfigPath)) return Results.NotFound();
-    var json = System.IO.File.ReadAllText(fetcherConfigPath);
+    var configDir = PathHelpers.GetFetcherConfigDirectory();
+    var localConfig = Path.Combine(configDir, "appsettings.Local.json");
+    var defaultConfig = Path.Combine(configDir, "appsettings.json");
+    var pathToRead = System.IO.File.Exists(localConfig) ? localConfig : defaultConfig;
+    if (!System.IO.File.Exists(pathToRead)) return Results.NotFound();
+    var json = System.IO.File.ReadAllText(pathToRead);
     return Results.Json(JsonDocument.Parse(json));
 });
 
@@ -137,8 +156,8 @@ app.MapPost("/api/config", async (HttpContext ctx) =>
 {
     if (!adminEnabled) return Results.NotFound();
     if (!IsAuthorized(ctx)) return Results.Unauthorized();
-    var fetcherConfigPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../MailFetcher/appsettings.json"));
-    Directory.CreateDirectory(Path.GetDirectoryName(fetcherConfigPath)!);
+    var configDir = PathHelpers.GetFetcherConfigDirectory();
+    Directory.CreateDirectory(configDir);
     using var reader = new StreamReader(ctx.Request.Body);
     var body = await reader.ReadToEndAsync();
     try
@@ -149,7 +168,8 @@ app.MapPost("/api/config", async (HttpContext ctx) =>
     {
         return Results.BadRequest("Invalid JSON");
     }
-    await System.IO.File.WriteAllTextAsync(fetcherConfigPath, body);
+    var targetPath = Path.Combine(configDir, "appsettings.Local.json");
+    await System.IO.File.WriteAllTextAsync(targetPath, body);
     return Results.Ok();
 });
 
@@ -238,14 +258,6 @@ string Redact(string input)
     return s;
 }
 
-string GetSolutionRoot()
-{
-    // bin/<Config>/netX.Y/ -> project dir
-    var projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../.."));
-    // project dir parent is solution root
-    return Path.GetFullPath(Path.Combine(projectDir, ".."));
-}
-
 app.MapPost("/api/run-fetch/start", (HttpContext ctx) =>
 {
     if (!adminEnabled) return Results.NotFound();
@@ -254,7 +266,7 @@ app.MapPost("/api/run-fetch/start", (HttpContext ctx) =>
         return Results.BadRequest("Fetcher già in esecuzione");
 
     logBuffer = new ConcurrentQueue<string>();
-    var slnRoot = GetSolutionRoot();
+    var slnRoot = PathHelpers.GetSolutionRoot();
     var csproj = Path.Combine(slnRoot, "MailFetcher", "MailFetcher.csproj");
     if (!System.IO.File.Exists(csproj)) return Results.NotFound("MailFetcher.csproj non trovato");
 
@@ -268,6 +280,7 @@ app.MapPost("/api/run-fetch/start", (HttpContext ctx) =>
         RedirectStandardError = true,
         CreateNoWindow = true
     };
+    psi.Environment["MAILFETCHER_CONFIG_DIR"] = PathHelpers.GetFetcherConfigDirectory();
     currentProcess = new Process { StartInfo = psi, EnableRaisingEvents = true };
     currentProcess.OutputDataReceived += (_, e) => { if (e.Data != null) EnqueueLog(e.Data); };
     currentProcess.ErrorDataReceived += (_, e) => { if (e.Data != null) EnqueueLog("ERR: " + e.Data); };
@@ -328,7 +341,7 @@ var scheduler = new Timer(async _ =>
     if (currentProcess != null && !currentProcess.HasExited) return; // skip if running
     EnqueueLog($"Scheduler: avvio fetch alle {DateTime.Now:HH:mm:ss}");
     // Start process directly (duplicate minimal logic)
-    var slnRoot = GetSolutionRoot();
+    var slnRoot = PathHelpers.GetSolutionRoot();
     var csproj = Path.Combine(slnRoot, "MailFetcher", "MailFetcher.csproj");
     var psi = new ProcessStartInfo
     {
@@ -340,6 +353,7 @@ var scheduler = new Timer(async _ =>
         RedirectStandardError = true,
         CreateNoWindow = true
     };
+    psi.Environment["MAILFETCHER_CONFIG_DIR"] = PathHelpers.GetFetcherConfigDirectory();
     currentProcess = new Process { StartInfo = psi, EnableRaisingEvents = true };
     currentProcess.OutputDataReceived += (_, e) => { if (e.Data != null) EnqueueLog(e.Data); };
     currentProcess.ErrorDataReceived += (_, e) => { if (e.Data != null) EnqueueLog("ERR: " + e.Data); };
@@ -409,8 +423,24 @@ app.MapPost("/api/scheduler", async (HttpContext ctx) =>
 
 app.Run();
 
+static class PathHelpers
+{
+    public static string GetSolutionRoot()
+    {
+        var projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../.."));
+        return Path.GetFullPath(Path.Combine(projectDir, ".."));
+    }
+
+    public static string GetFetcherConfigDirectory()
+    {
+        return Path.Combine(GetSolutionRoot(), "MailFetcher");
+    }
+}
+
 public class SchedulerState
 {
     public bool Enabled { get; set; }
     public int IntervalMinutes { get; set; } = 30;
 }
+
+
