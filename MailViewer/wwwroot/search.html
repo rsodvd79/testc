@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ricerca messaggi - Mail Viewer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; height: 100vh; display: grid; grid-template-rows: 56px 1fr; background: #f1f5f9; }
+    header { background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+    header .title { font-weight: 600; letter-spacing: 0.2px; }
+    header nav a { color: #cbd5f5; text-decoration: none; font-size: 14px; margin-left: 16px; }
+    header nav a:hover { color: #ffffff; }
+    main { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
+    aside { border-right: 1px solid #e2e8f0; background: #ffffff; padding: 16px; display: flex; flex-direction: column; }
+    form { display: grid; gap: 12px; margin-bottom: 16px; }
+    label { display: grid; gap: 4px; font-size: 13px; color: #475569; }
+    input[type="search"], select, input[type="number"] { padding: 8px 10px; border: 1px solid #cbd5f5; border-radius: 6px; font-size: 14px; }
+    input[type="search"]:focus, select:focus, input[type="number"]:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+    button { padding: 10px 12px; background: #2563eb; border: none; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .status { min-height: 20px; font-size: 13px; color: #64748b; margin-bottom: 12px; }
+    .status.error { color: #b91c1c; }
+    .status.success { color: #15803d; }
+    .results { flex: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; padding: 4px; }
+    .result { padding: 10px 12px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 6px; background: #ffffff; box-shadow: 0 1px 1px rgba(15,23,42,0.05); }
+    .result:hover { border-color: #94a3b8; }
+    .result.selected { border-color: #2563eb; box-shadow: 0 0 0 1px rgba(37,99,235,0.3); background: #eef2ff; }
+    .result .subject { font-weight: 600; color: #0f172a; font-size: 14px; }
+    .result .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
+    .result .snippet { font-size: 13px; color: #334155; margin-top: 8px; line-height: 1.4; }
+    section { display: flex; flex-direction: column; overflow: hidden; }
+    .viewer { background: #ffffff; flex: 1; display: flex; flex-direction: column; border-left: 1px solid #e2e8f0; }
+    .viewer .header { padding: 16px; border-bottom: 1px solid #e2e8f0; }
+    .viewer .subject { font-weight: 600; font-size: 18px; color: #0f172a; margin-bottom: 6px; }
+    .viewer .meta { font-size: 13px; color: #475569; margin-bottom: 8px; }
+    .viewer .attachments a { display: inline-block; margin-right: 12px; font-size: 13px; color: #2563eb; text-decoration: none; }
+    .viewer .attachments a:hover { text-decoration: underline; }
+    iframe { flex: 1; border: none; background: #ffffff; }
+    .empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 40px 12px; }
+    @media (max-width: 960px) {
+      main { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid #e2e8f0; }
+      .viewer { border-left: none; }
+    }
+  </style>
+</head>
+<body data-search-version="1.2">
+  <header>
+    <div class="title">Mail Viewer - Ricerca</div>
+    <nav>
+      <a href="index.html">Apri caselle</a>
+    </nav>
+  </header>
+  <main>
+    <aside>
+      <form id="searchForm">
+        <label>
+          Testo da cercare
+          <input type="search" id="query" name="q" placeholder="Oggetto, mittente, contenuto..." autocomplete="off" required />
+        </label>
+        <label>
+          Casella
+          <select id="account" name="account">
+            <option value="">Tutte le caselle</option>
+          </select>
+        </label>
+        <label>
+          Cartella
+          <select id="folder" name="folder" disabled>
+            <option value="">Tutte le cartelle</option>
+          </select>
+        </label>
+        <label>
+          Limite risultati
+          <input type="number" id="limit" name="limit" min="1" max="500" value="100" />
+        </label>
+        <button type="submit" id="searchButton">Cerca</button>
+      </form>
+      <div class="status" id="status"></div>
+      <div class="results" id="results">
+        <div class="empty">Digita una parola chiave e avvia la ricerca.</div>
+      </div>
+    </aside>
+    <section>
+      <div class="viewer">
+        <div class="header">
+          <div class="subject" id="subject">Seleziona un risultato per leggere il messaggio</div>
+          <div class="meta" id="meta"></div>
+          <div class="attachments" id="attachments"></div>
+        </div>
+        <iframe id="body"></iframe>
+      </div>
+    </section>
+  </main>
+  <script>
+    const state = {
+      results: [],
+      selectedIndex: null
+    };
+
+    const encodePathSegments = (value) => {
+      if (!value) return '';
+      const parts = Array.isArray(value) ? value : value.replace(/\\/g, '/').split('/');
+      return parts
+        .filter(part => part !== undefined && part !== null && part !== '')
+        .map(part => encodeURIComponent(part))
+        .join('/');
+    };
+
+    const escapeHtml = (value) => {
+      if (value == null) return '';
+      return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
+    const formatSize = (bytes) => {
+      if (!bytes || bytes <= 0) return '';
+      const kb = Math.max(1, Math.round(bytes / 1024));
+      return `${kb} KB`;
+    };
+
+    const setStatus = (text, type) => {
+      const status = document.getElementById('status');
+      status.textContent = text || '';
+      status.className = 'status' + (type ? ' ' + type : '');
+    };
+
+    const describeError = (err) => {
+      if (!err) return 'errore sconosciuto';
+      if (typeof err === 'string') return err;
+      if (err.message) return err.message;
+      try {
+        return JSON.stringify(err);
+      } catch {
+        return String(err);
+      }
+    };
+
+    const loadAccounts = async () => {
+      const select = document.getElementById('account');
+      select.innerHTML = '<option value="">Tutte le caselle</option>';
+      try {
+        const res = await fetch('/api/accounts');
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || res.statusText || 'accounts');
+        }
+        const accounts = await res.json();
+        if (Array.isArray(accounts)) {
+          accounts.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a;
+            opt.textContent = a;
+            select.appendChild(opt);
+          });
+          return accounts;
+        }
+        return [];
+      } catch (err) {
+        console.error('Caricamento caselle fallito', err);
+        setStatus(`Impossibile caricare l'elenco caselle: ${describeError(err)}`, 'error');
+        return [];
+      }
+    };
+
+    const loadFolders = async (account, selectedFolder) => {
+      const select = document.getElementById('folder');
+      select.innerHTML = '<option value="">Tutte le cartelle</option>';
+      select.disabled = true;
+      if (!account) {
+        return [];
+      }
+      try {
+        const res = await fetch(`/api/folders/${encodeURIComponent(account)}`);
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || res.statusText || 'folders');
+        }
+        const folders = await res.json();
+        if (Array.isArray(folders) && folders.length > 0) {
+          folders.sort().forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            select.appendChild(opt);
+          });
+          select.disabled = false;
+          if (selectedFolder && folders.includes(selectedFolder)) {
+            select.value = selectedFolder;
+          }
+        }
+        return folders ?? [];
+      } catch (err) {
+        console.error('Caricamento cartelle fallito', err);
+        setStatus(`Impossibile caricare le cartelle per la casella selezionata: ${describeError(err)}`, 'error');
+        return [];
+      }
+    };
+
+    const renderResults = () => {
+      const container = document.getElementById('results');
+      container.innerHTML = '';
+      if (state.results.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'Nessun risultato trovato.';
+        container.appendChild(empty);
+        return;
+      }
+      state.results.forEach((result, index) => {
+        const div = document.createElement('div');
+        div.className = 'result' + (state.selectedIndex === index ? ' selected' : '');
+        div.dataset.index = index.toString();
+        const subject = result.subject && result.subject.trim() !== '' ? result.subject.trim() : '(senza oggetto)';
+        const folder = result.folder && result.folder !== '' ? result.folder : '(radice)';
+        const metaParts = [result.account, folder];
+        if (result.sent) metaParts.push(result.sent);
+        const sizeLabel = formatSize(result.size);
+        if (sizeLabel) metaParts.push(sizeLabel);
+        const meta = metaParts.filter(Boolean).join(' | ');
+        const snippet = result.snippet || '';
+        div.innerHTML = `
+          <div class="subject">${escapeHtml(subject)}</div>
+          <div class="meta">${escapeHtml(meta)}</div>
+          <div class="snippet">${escapeHtml(snippet)}</div>
+        `;
+        div.addEventListener('click', () => openResult(index));
+        container.appendChild(div);
+      });
+    };
+
+    const openResult = async (index) => {
+      if (index < 0 || index >= state.results.length) return;
+      state.selectedIndex = index;
+      renderResults();
+      const result = state.results[index];
+      const encodedAccount = encodeURIComponent(result.account);
+      const encodedPath = encodePathSegments(result.path.split('/'));
+      setStatus('Caricamento messaggio...', '');
+      try {
+        const res = await fetch(`/api/message/${encodedAccount}/${encodedPath}`);
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || res.statusText || 'message');
+        }
+        const data = await res.json();
+        const subject = data.headers.subject || result.subject || '(senza oggetto)';
+        document.getElementById('subject').textContent = subject;
+        const from = data.headers.from || '';
+        const to = data.headers.to || '';
+        const sent = result.sent || data.headers.date || '';
+        const metaParts = [];
+        if (from) metaParts.push(from);
+        if (to) metaParts.push('-> ' + to);
+        if (sent) metaParts.push(sent);
+        document.getElementById('meta').textContent = metaParts.join(' | ');
+        const iframe = document.getElementById('body');
+        const doc = iframe.contentDocument;
+        doc.open();
+        doc.write(data.body || '<pre style="white-space:pre-wrap"></pre>');
+        doc.close();
+        const attachments = document.getElementById('attachments');
+        attachments.innerHTML = '';
+        data.attachments.forEach(att => {
+          const link = document.createElement('a');
+          link.textContent = att.name;
+          link.href = `/api/attachment/${encodedAccount}/${encodedPath}?index=${att.index}`;
+          link.target = '_blank';
+          attachments.appendChild(link);
+        });
+        setStatus('', '');
+      } catch (err) {
+        console.error('Caricamento messaggio fallito', err);
+        setStatus(`Impossibile caricare il messaggio selezionato: ${describeError(err)}`, 'error');
+      }
+    };
+
+    const performSearch = async (options = {}) => {
+      const queryInput = document.getElementById('query');
+      const accountSelect = document.getElementById('account');
+      const folderSelect = document.getElementById('folder');
+      const limitInput = document.getElementById('limit');
+      const button = document.getElementById('searchButton');
+      const query = queryInput.value.trim();
+      if (query.length === 0) {
+        setStatus('Inserisci almeno un termine di ricerca.', 'error');
+        return [];
+      }
+      const params = new URLSearchParams();
+      params.set('q', query);
+      const limit = parseInt(limitInput.value, 10);
+      if (!Number.isNaN(limit) && limit > 0) {
+        params.set('limit', Math.min(limit, 500));
+      }
+      if (accountSelect.value) {
+        params.set('account', accountSelect.value);
+      }
+      if (folderSelect.value) {
+        params.set('folder', folderSelect.value);
+      }
+
+      const serialized = params.toString();
+      if (!options.skipHistory) {
+        const nextUrl = serialized ? `${window.location.pathname}?${serialized}` : window.location.pathname;
+        history.replaceState(null, '', nextUrl);
+      }
+
+      setStatus('Ricerca in corso...', '');
+      button.disabled = true;
+      state.selectedIndex = null;
+      try {
+        const res = await fetch(`/api/search?${serialized}`);
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || res.statusText || 'search');
+        }
+        const results = await res.json();
+        state.results = Array.isArray(results) ? results : [];
+
+        if (state.results.length === 0) {
+          setStatus('Nessun messaggio trovato.', '');
+        } else {
+          setStatus(`${state.results.length} risultati`, 'success');
+        }
+        renderResults();
+        return state.results;
+      } catch (err) {
+        console.error('Ricerca fallita', err);
+        setStatus(`Ricerca non riuscita: ${describeError(err)}`, 'error');
+        state.results = [];
+        renderResults();
+        return [];
+      } finally {
+        button.disabled = false;
+      }
+    };
+
+    window.addEventListener('load', async () => {
+      const queryInput = document.getElementById('query');
+      const accountSelect = document.getElementById('account');
+      const folderSelect = document.getElementById('folder');
+      const limitInput = document.getElementById('limit');
+
+      document.getElementById('searchForm').addEventListener('submit', (evt) => {
+        evt.preventDefault();
+        void performSearch();
+      });
+
+      accountSelect.addEventListener('change', async (evt) => {
+        await loadFolders(evt.target.value);
+      });
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialQuery = urlParams.get('q') || '';
+      const initialAccount = urlParams.get('account') || '';
+      const initialFolder = urlParams.get('folder') || '';
+      const initialLimit = urlParams.get('limit');
+
+      if (initialQuery) {
+        queryInput.value = initialQuery;
+      }
+      if (initialLimit) {
+        const parsedLimit = parseInt(initialLimit, 10);
+        if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
+          limitInput.value = Math.min(Math.max(parsedLimit, 1), 500);
+        }
+      }
+
+      const accounts = await loadAccounts();
+
+      if (initialAccount && accounts.includes(initialAccount)) {
+        accountSelect.value = initialAccount;
+        await loadFolders(initialAccount, initialFolder);
+      } else if (initialAccount) {
+                setStatus(`La casella "${initialAccount}" non e stata trovata.`, 'error');
+      }
+
+      if (initialQuery) {
+        await performSearch({ skipHistory: true });
+      } else if (accounts.length === 0) {
+        setStatus('Nessuna casella trovata. Carica dei dati prima di procedere.', 'error');
+      } else {
+        setStatus('Pronto per la ricerca.', '');
+        queryInput.focus();
+      }
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+

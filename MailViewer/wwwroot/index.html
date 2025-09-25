@@ -7,6 +7,9 @@
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; height: 100vh; display: grid; grid-template-rows: 48px 1fr; }
     header { background: #0f172a; color: white; display: flex; align-items: center; padding: 0 12px; }
+    header nav { margin-left: auto; }
+    header nav a { color: #cbd5f5; text-decoration: none; font-size: 13px; }
+    header nav a:hover { color: #ffffff; }
     main { display: grid; grid-template-columns: 240px 220px 260px 1fr; height: 100%; }
     aside, nav, section { border-right: 1px solid #e2e8f0; overflow: auto; }
     section { border-right: none; }
@@ -112,6 +115,7 @@
 <body>
   <header>
     <strong>Mail Viewer</strong>
+    <nav><a href="search.html">Ricerca</a></nav>
   </header>
   <main>
     <aside>

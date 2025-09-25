@@ -129,6 +129,154 @@ app.MapGet("/api/attachment/{account}/{*path}", (HttpContext ctx, string account
     return Results.File(mem, contentType, fileName);
 });
 
+app.MapGet("/api/search", (string q, string? account, string? folder, int? limit, CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(q))
+    {
+        return Results.BadRequest("Query required");
+    }
+
+    var tokens = q.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Select(t => t.Trim())
+        .Where(t => t.Length > 0)
+        .ToArray();
+    if (tokens.Length == 0)
+    {
+        return Results.BadRequest("Query required");
+    }
+
+    var maxResults = Math.Clamp(limit ?? 100, 1, 500);
+    var matches = new List<SearchResultItem>();
+    var dataRootFull = Path.GetFullPath(dataRoot);
+
+    IEnumerable<string?> accountsToSearch;
+    if (!string.IsNullOrWhiteSpace(account))
+    {
+        accountsToSearch = new[] { account.Trim() };
+    }
+    else
+    {
+        accountsToSearch = Directory.EnumerateDirectories(dataRoot)
+            .Select(Path.GetFileName)
+            .Where(n => !string.IsNullOrEmpty(n));
+    }
+
+    var limitReached = false;
+    foreach (var accountName in accountsToSearch)
+    {
+        if (limitReached) break;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(accountName)) continue;
+
+        var accountKey = accountName.Trim();
+        if (accountKey.Contains("..", StringComparison.Ordinal)) continue;
+
+        var accountPath = Path.Combine(dataRoot, accountKey);
+        if (!Directory.Exists(accountPath)) continue;
+
+        var accountFull = Path.GetFullPath(accountPath);
+        if (!accountFull.StartsWith(dataRootFull, StringComparison.OrdinalIgnoreCase)) continue;
+
+        IEnumerable<string> rootsToSearch;
+        if (!string.IsNullOrWhiteSpace(folder))
+        {
+            var normalizedFolder = folder!.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar).Trim();
+            if (string.IsNullOrEmpty(normalizedFolder))
+            {
+                rootsToSearch = new[] { accountPath };
+            }
+            else
+            {
+                var folderPath = Path.Combine(accountPath, normalizedFolder);
+                if (!Directory.Exists(folderPath)) continue;
+
+                var folderFull = Path.GetFullPath(folderPath);
+                if (!folderFull.StartsWith(accountFull, StringComparison.OrdinalIgnoreCase)) continue;
+
+                rootsToSearch = new[] { folderPath };
+            }
+        }
+        else
+        {
+            rootsToSearch = new[] { accountPath };
+        }
+
+        foreach (var root in rootsToSearch)
+        {
+            if (limitReached) break;
+
+            foreach (var file in Directory.EnumerateFiles(root, "*.eml", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    using var stream = File.OpenRead(file);
+                    var message = MimeMessage.Load(stream);
+
+                    var bodyText = ExtractPlainText(message);
+                    var haystack = BuildSearchHaystack(message, bodyText);
+                    if (!ContainsAllTokens(haystack, tokens)) continue;
+
+                    var snippet = BuildSnippet(bodyText, haystack, tokens);
+                    var relativePath = Path.GetRelativePath(accountPath, file).Replace('\\', '/');
+                    var folderPart = Path.GetDirectoryName(relativePath)?.Replace('\\', '/');
+                    if (folderPart == ".") folderPart = string.Empty;
+
+                    var info = new FileInfo(file);
+                    var sent = message.Date != DateTimeOffset.MinValue ? message.Date.ToLocalTime() : (DateTimeOffset?)null;
+
+                    matches.Add(new SearchResultItem
+                    {
+                        Account = accountKey,
+                        Path = relativePath,
+                        Folder = folderPart ?? string.Empty,
+                        File = Path.GetFileName(file),
+                        Id = Path.GetFileNameWithoutExtension(file),
+                        Subject = string.IsNullOrWhiteSpace(message.Subject) ? null : message.Subject.Trim(),
+                        From = message.From?.ToString(),
+                        To = message.To?.ToString(),
+                        Sent = sent?.ToString("yyyy-MM-dd HH:mm"),
+                        Size = info.Length,
+                        Snippet = snippet,
+                        SortDate = sent
+                    });
+
+                    if (matches.Count >= maxResults)
+                    {
+                        limitReached = true;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    app.Logger.LogWarning(ex, "Failed to load message {File} during search", file);
+                }
+            }
+        }
+    }
+
+    var ordered = matches
+        .OrderByDescending(m => m.SortDate ?? DateTimeOffset.MinValue)
+        .ThenByDescending(m => m.Id, StringComparer.OrdinalIgnoreCase)
+        .Select(m => new
+        {
+            account = m.Account,
+            path = m.Path,
+            folder = m.Folder,
+            file = m.File,
+            id = m.Id,
+            subject = m.Subject,
+            from = m.From,
+            to = m.To,
+            sent = m.Sent,
+            size = m.Size,
+            snippet = m.Snippet
+        })
+        .ToArray();
+
+    return Results.Ok(ordered);
+});
+
 app.MapGet("/", () => Results.Redirect("/index.html"));
 
 // --- Config API for MailFetcher ---
@@ -434,6 +582,104 @@ app.MapPost("/api/scheduler", async (HttpContext ctx) =>
 
 app.Run();
 
+static string ExtractPlainText(MimeMessage message)
+{
+    if (!string.IsNullOrWhiteSpace(message.TextBody))
+    {
+        return NormalizeWhitespace(message.TextBody);
+    }
+    if (!string.IsNullOrWhiteSpace(message.HtmlBody))
+    {
+        return StripHtml(message.HtmlBody);
+    }
+    return string.Empty;
+}
+
+static string BuildSearchHaystack(MimeMessage message, string bodyText)
+{
+    var builder = new StringBuilder();
+    if (!string.IsNullOrWhiteSpace(message.Subject)) builder.Append(message.Subject).Append(' ');
+    var from = message.From?.ToString();
+    if (!string.IsNullOrWhiteSpace(from)) builder.Append(from).Append(' ');
+    var to = message.To?.ToString();
+    if (!string.IsNullOrWhiteSpace(to)) builder.Append(to).Append(' ');
+    var cc = message.Cc?.ToString();
+    if (!string.IsNullOrWhiteSpace(cc)) builder.Append(cc).Append(' ');
+    var bcc = message.Bcc?.ToString();
+    if (!string.IsNullOrWhiteSpace(bcc)) builder.Append(bcc).Append(' ');
+    builder.Append(bodyText);
+    return NormalizeWhitespace(builder.ToString());
+}
+
+static bool ContainsAllTokens(string text, string[] tokens)
+{
+    foreach (var token in tokens)
+    {
+        if (!text.Contains(token, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static string BuildSnippet(string primary, string secondary, string[] tokens)
+{
+    var snippet = BuildSnippetInternal(primary, tokens);
+    if (!string.IsNullOrEmpty(snippet))
+    {
+        return snippet;
+    }
+    return BuildSnippetInternal(secondary, tokens);
+}
+
+static string BuildSnippetInternal(string? text, string[] tokens)
+{
+    var normalized = NormalizeWhitespace(text);
+    if (string.IsNullOrEmpty(normalized))
+    {
+        return string.Empty;
+    }
+    foreach (var token in tokens)
+    {
+        var idx = normalized.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+        {
+            var start = Math.Max(0, idx - 60);
+            var end = Math.Min(normalized.Length, idx + token.Length + 80);
+            var snippet = normalized.Substring(start, end - start);
+            if (start > 0) snippet = "..." + snippet;
+            if (end < normalized.Length) snippet += "...";
+            return snippet;
+        }
+    }
+    if (normalized.Length <= 160)
+    {
+        return normalized;
+    }
+    return normalized.Substring(0, 160) + "...";
+}
+
+static string NormalizeWhitespace(string? input)
+{
+    if (string.IsNullOrWhiteSpace(input))
+    {
+        return string.Empty;
+    }
+    return Regex.Replace(input, @"\s+", " ").Trim();
+}
+
+static string StripHtml(string? input)
+{
+    if (string.IsNullOrWhiteSpace(input))
+    {
+        return string.Empty;
+    }
+    var withoutTags = Regex.Replace(input, @"<.*?>", " ");
+    var decoded = System.Net.WebUtility.HtmlDecode(withoutTags);
+    return NormalizeWhitespace(decoded);
+}
+
 static (string? subject, string? sent) ReadMessagePreview(string path)
 {
     try
@@ -466,6 +712,22 @@ static class PathHelpers
     {
         return Path.Combine(GetSolutionRoot(), "MailFetcher");
     }
+}
+
+class SearchResultItem
+{
+    public string Account { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty;
+    public string Folder { get; set; } = string.Empty;
+    public string File { get; set; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
+    public string? Subject { get; set; }
+    public string? From { get; set; }
+    public string? To { get; set; }
+    public string? Sent { get; set; }
+    public long Size { get; set; }
+    public string? Snippet { get; set; }
+    public DateTimeOffset? SortDate { get; set; }
 }
 
 public class SchedulerState
