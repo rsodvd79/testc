@@ -1,22 +1,349 @@
 <!doctype html>
-<html>
+<html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Config MailFetcher</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 16px; max-width: 960px; }
-    h1 { margin: 0 0 16px; }
-    fieldset { border: 1px solid #e2e8f0; padding: 12px; margin-bottom: 16px; }
-    label { display: block; font-size: 12px; color: #475569; }
-    input[type=text], input[type=number], input[type=password] { width: 100%; padding: 8px; margin: 4px 0 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
-    .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .actions { display: flex; gap: 8px; }
-    button { background: #0f172a; color: white; padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { border: 1px solid #e2e8f0; padding: 6px; font-size: 14px; }
-    pre { background: #0b1020; color: #e2e8f0; padding: 8px; border-radius: 6px; height: 240px; overflow: auto; }
-  </style>
+:root {
+  --bg: #0f172a;
+  --bg-light: #eef2ff;
+  --panel: #ffffff;
+  --border: #d8def2;
+  --text: #0f172a;
+  --muted: #5b647a;
+  --accent: #2563eb;
+  --accent-dark: #1d4ed8;
+  --danger: #b91c1c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+  background: linear-gradient(180deg, var(--bg) 0%, #1e293b 55%, var(--bg-light) 55%);
+  color: var(--text);
+  padding: 32px;
+}
+
+.wrapper {
+  margin: 0 auto;
+  max-width: 1100px;
+  background: var(--panel);
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 48px rgba(12, 21, 51, 0.25);
+  overflow: hidden;
+}
+
+header {
+  padding: 28px 32px 24px;
+  background: linear-gradient(135deg, rgba(37,99,235,0.92), rgba(37,99,235,0.7));
+  color: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+header span {
+  font-size: 13px;
+  color: rgba(248, 250, 252, 0.82);
+}
+
+header .links {
+  display: flex;
+  gap: 12px;
+}
+
+header .links a {
+  display: inline-block;
+  color: rgba(248,250,252,0.9);
+  text-decoration: none;
+  font-size: 13px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(248,250,252,0.35);
+}
+
+main {
+  padding: 30px 32px 40px;
+  display: grid;
+  gap: 24px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 12px 35px rgba(15, 23, 42, 0.12);
+}
+
+.card h2 {
+  margin: 0 0 18px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.card small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 14px;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+.flex-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+button {
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 11px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  box-shadow: 0 14px 32px rgba(37, 99, 235, 0.3);
+}
+
+button:hover {
+  transform: translateY(-1px);
+  background: var(--accent-dark);
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.36);
+}
+
+button.secondary {
+  background: #475569;
+  box-shadow: 0 12px 28px rgba(71, 85, 105, 0.3);
+}
+
+button.danger {
+  background: var(--danger);
+  box-shadow: 0 12px 26px rgba(185, 28, 28, 0.32);
+}
+
+button.danger:hover { background: #981b1b; }
+
+.table-wrapper {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+thead {
+  background: #f2f6ff;
+  color: var(--muted);
+}
+
+th, td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+pre {
+  background: #101739;
+  color: #f8fafc;
+  padding: 18px;
+  border-radius: 16px;
+  height: 240px;
+  overflow: auto;
+  font-size: 12px;
+  margin-top: 16px;
+}
+
+.actions-inline {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  body { padding: 20px; }
+  main { padding: 26px; }
+}
+</style>
+</head>
+<body data-admin-version="1.2">
+  <div class="wrapper">
+    <header>
+      <div>
+        <h1>Impostazioni MailFetcher</h1>
+        <span>Gestisci archiviazione, account e pianificazione raccolta</span>
+      </div>
+      <div class="links">
+        <a href="index.html">Viewer</a>
+        <a href="search.html">Ricerca</a>
+      </div>
+    </header>
+    <main>
+      <section class="card">
+        <h2>Monitoraggio in tempo reale</h2>
+        <div class="actions-inline">
+          <button class="secondary" onclick="startFetch()">Esegui fetch ora</button>
+          <button class="danger" onclick="stopFetch()">Stop</button>
+          <span style="font-size:13px;color:var(--muted);">Stato: <strong id="running">-</strong></span>
+        </div>
+        <pre id="log"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Credenziali amministratore</h2>
+        <div class="field-grid" style="max-width:420px;">
+          <div class="field">
+            <label for="adminUser">Username</label>
+            <input id="adminUser" type="text" />
+          </div>
+          <div class="field">
+            <label for="adminPass">Password (lascia vuoto per non cambiare)</label>
+            <input id="adminPass" type="password" />
+          </div>
+          <div class="field">
+            <label for="adminPassConfirm">Conferma Password</label>
+            <input id="adminPassConfirm" type="password" />
+          </div>
+        </div>
+        <button style="margin-top:16px;" onclick="saveAdminAuth()">Salva credenziali</button>
+      </section>
+
+      <section class="card">
+        <h2>Pianificazione automatica</h2>
+        <div class="field-grid" style="max-width:420px;">
+          <label class="field" style="flex-direction:row;align-items:center;gap:12px;">
+            <input type="checkbox" id="schedEnabled" />
+            Abilita esecuzione periodica
+          </label>
+          <div class="field">
+            <label for="schedInterval">Intervallo (minuti)</label>
+            <input type="number" id="schedInterval" min="1" step="1" value="30" />
+          </div>
+        </div>
+        <button style="margin-top:16px;" onclick="saveScheduler()">Salva pianificazione</button>
+      </section>
+
+      <section class="card">
+        <h2>Cartella di output</h2>
+        <div class="field" style="max-width:420px;">
+          <label for="outputRoot">Directory archivio principale</label>
+          <input id="outputRoot" type="text" placeholder="Data" />
+        </div>
+        <div class="actions-inline" style="margin-top:18px;">
+          <button onclick="save()">Salva configurazione</button>
+          <button class="secondary" onclick="loadConfig()">Ricarica</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Caselle monitorate</h2>
+        <small>Aggiungi nuove caselle o aggiorna host, porta e credenziali di accesso.</small>
+        <div class="field-grid" style="margin-top:18px;">
+          <div class="field">
+            <label for="accName">Nome account</label>
+            <input type="text" id="accName" placeholder="Alias descrittivo..." />
+          </div>
+          <div class="field">
+            <label for="accHost">Server</label>
+            <input type="text" id="accHost" placeholder="imap.example.com" />
+          </div>
+          <div class="field">
+            <label for="accPort">Porta</label>
+            <input type="number" id="accPort" value="993" />
+          </div>
+          <div class="field">
+            <label for="accUser">Username</label>
+            <input type="text" id="accUser" />
+          </div>
+          <div class="field">
+            <label for="accPass">Password</label>
+            <input type="password" id="accPass" />
+          </div>
+          <div class="field">
+            <label for="accRoot">Cartella radice</label>
+            <input type="text" id="accRoot" />
+          </div>
+        </div>
+        <div class="actions-inline" style="margin-top:18px;">
+          <button onclick="addAccount()">Aggiungi account</button>
+          <button class="secondary" onclick="render()">Aggiorna elenco</button>
+        </div>
+        <div class="table-wrapper" style="margin-top:20px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Host</th>
+                <th>Porta</th>
+                <th>SSL</th>
+                <th>Username</th>
+                <th>Password</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="accounts"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
   <script>
     let config = { OutputRoot: 'Data', Accounts: [] };
     let scheduler = { Enabled: false, IntervalMinutes: 30 };
@@ -129,58 +456,5 @@
 
     window.onload = () => { loadConfig(); loadScheduler(); loadAdminAuth(); refreshStatus(); };
   </script>
-</head>
-<body>
-  <h1>Configurazione MailFetcher</h1>
-  <fieldset>
-    <div class="actions">
-      <button onclick="startFetch()">Esegui fetch ora</button>
-      <button onclick="stopFetch()">Stop</button>
-      <span style="margin-left:8px">Stato: <strong id="running">-</strong></span>
-      <a href="/index.html" style="margin-left:auto">Torna al Viewer</a>
-    </div>
-    <pre id="log"></pre>
-  </fieldset>
-  <fieldset>
-    <legend>AdminAuth</legend>
-    <label>Username</label>
-    <input id="adminUser" type="text" />
-    <label>Password (lascia vuoto per non cambiare)</label>
-    <input id="adminPass" type="password" />
-    <label>Conferma Password</label>
-    <input id="adminPassConfirm" type="password" />
-    <div class="actions">
-      <button onclick="saveAdminAuth()">Salva Credenziali</button>
-    </div>
-  </fieldset>
-  <fieldset>
-    <legend>Scheduler</legend>
-    <label><input id="schedEnabled" type="checkbox"/> Abilita esecuzione periodica</label>
-    <label>Intervallo (minuti)</label>
-    <input id="schedInterval" type="number" min="1" step="1" value="30" />
-    <div class="actions">
-      <button onclick="saveScheduler()">Salva Scheduler</button>
-    </div>
-  </fieldset>
-  <fieldset>
-    <label>Cartella Output (OutputRoot)</label>
-    <input id="outputRoot" type="text" placeholder="Data" />
-  </fieldset>
-  <fieldset>
-    <div class="actions">
-      <button onclick="addAccount()">Aggiungi Casella</button>
-      <button onclick="save()">Salva</button>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Nome</th><th>Host</th><th>Porta</th><th>SSL</th><th>Username</th><th>Password</th><th></th>
-        </tr>
-      </thead>
-      <tbody id="accounts"></tbody>
-    </table>
-  </fieldset>
 </body>
 </html>
-
-

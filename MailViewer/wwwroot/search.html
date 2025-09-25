@@ -5,59 +5,333 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ricerca messaggi - Mail Viewer</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; height: 100vh; display: grid; grid-template-rows: 56px 1fr; background: #f1f5f9; }
-    header { background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
-    header .title { font-weight: 600; letter-spacing: 0.2px; }
-    header nav a { color: #cbd5f5; text-decoration: none; font-size: 14px; margin-left: 16px; }
-    header nav a:hover { color: #ffffff; }
-    main { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
-    aside { border-right: 1px solid #e2e8f0; background: #ffffff; padding: 16px; display: flex; flex-direction: column; }
-    form { display: grid; gap: 12px; margin-bottom: 16px; }
-    label { display: grid; gap: 4px; font-size: 13px; color: #475569; }
-    input[type="search"], select, input[type="number"] { padding: 8px 10px; border: 1px solid #cbd5f5; border-radius: 6px; font-size: 14px; }
-    input[type="search"]:focus, select:focus, input[type="number"]:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
-    button { padding: 10px 12px; background: #2563eb; border: none; color: white; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
-    button:hover { background: #1d4ed8; }
-    button:disabled { background: #94a3b8; cursor: not-allowed; }
-    .status { min-height: 20px; font-size: 13px; color: #64748b; margin-bottom: 12px; }
-    .status.error { color: #b91c1c; }
-    .status.success { color: #15803d; }
-    .results { flex: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; padding: 4px; }
-    .result { padding: 10px 12px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; margin-bottom: 6px; background: #ffffff; box-shadow: 0 1px 1px rgba(15,23,42,0.05); }
-    .result:hover { border-color: #94a3b8; }
-    .result.selected { border-color: #2563eb; box-shadow: 0 0 0 1px rgba(37,99,235,0.3); background: #eef2ff; }
-    .result .subject { font-weight: 600; color: #0f172a; font-size: 14px; }
-    .result .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
-    .result .snippet { font-size: 13px; color: #334155; margin-top: 8px; line-height: 1.4; }
-    section { display: flex; flex-direction: column; overflow: hidden; }
-    .viewer { background: #ffffff; flex: 1; display: flex; flex-direction: column; border-left: 1px solid #e2e8f0; }
-    .viewer .header { padding: 16px; border-bottom: 1px solid #e2e8f0; }
-    .viewer .subject { font-weight: 600; font-size: 18px; color: #0f172a; margin-bottom: 6px; }
-    .viewer .meta { font-size: 13px; color: #475569; margin-bottom: 8px; }
-    .viewer .attachments a { display: inline-block; margin-right: 12px; font-size: 13px; color: #2563eb; text-decoration: none; }
-    .viewer .attachments a:hover { text-decoration: underline; }
-    iframe { flex: 1; border: none; background: #ffffff; }
-    .empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 40px 12px; }
-    @media (max-width: 960px) {
-      main { grid-template-columns: 1fr; }
-      aside { border-right: none; border-bottom: 1px solid #e2e8f0; }
-      .viewer { border-left: none; }
-    }
-  </style>
+:root {
+  --bg: #0f172a;
+  --bg-light: #f1f5f9;
+  --panel: #ffffff;
+  --border: #dce1ee;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-dark: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.12);
+  --danger: #b91c1c;
+  --success: #15803d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+  background: var(--bg-light);
+  color: var(--text);
+}
+
+header {
+  background: linear-gradient(140deg, var(--bg) 0%, #1e293b 100%);
+  color: #f8fafc;
+  padding: 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.brand span {
+  font-size: 13px;
+  color: rgba(248, 250, 252, 0.75);
+}
+
+header nav a {
+  color: rgba(248, 250, 252, 0.9);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(248, 250, 252, 0.25);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+header nav a:hover {
+  background: rgba(248, 250, 252, 0.16);
+  color: #ffffff;
+}
+
+main {
+  flex: 1;
+  padding: 28px 32px 36px;
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+}
+
+.filters {
+  background: var(--panel);
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  height: fit-content;
+}
+
+.filters h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+input[type="search"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 14px;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+button[type="submit"] {
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.35);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+button[type="submit"]:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 36px rgba(37, 99, 235, 0.4);
+  background: var(--accent-dark);
+}
+
+button[type="submit"]:disabled {
+  background: var(--muted);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.status {
+  min-height: 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.status.error { color: var(--danger); }
+.status.success { color: var(--success); }
+
+.columns {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.results-card {
+  background: var(--panel);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.results-top {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.results-list {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+}
+
+.result-item {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s ease, border-left 0.15s ease;
+}
+
+.result-item:last-child { border-bottom: none; }
+
+.result-item:hover { background: #f1f5f9; }
+
+.result-item.selected {
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+}
+
+.result-item .subject {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.result-item .meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.result-item .snippet {
+  font-size: 13px;
+  color: #1f2937;
+  line-height: 1.45;
+}
+
+.viewer-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  min-height: 500px;
+  overflow: hidden;
+}
+
+.viewer-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
+}
+
+.viewer-header .subject {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.viewer-header .meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.viewer-header .attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.viewer-header .attachments a {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+}
+
+.viewer-header .attachments a:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.viewer-body {
+  flex: 1;
+  border: none;
+  width: 100%;
+  background: #ffffff;
+}
+
+mark {
+  background: #facc15;
+  color: inherit;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.empty {
+  padding: 28px;
+  text-align: center;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  main {
+    grid-template-columns: 1fr;
+    padding: 24px 20px 32px;
+  }
+
+  .results-list {
+    max-height: none;
+  }
+}
+</style>
 </head>
-<body data-search-version="1.2">
+<body data-search-version="1.4">
   <header>
-    <div class="title">Mail Viewer - Ricerca</div>
+    <div class="brand">
+      <h1>Ricerca Messaggi</h1>
+      <span>Filtra e apri rapidamente le mail archiviate</span>
+    </div>
     <nav>
-      <a href="index.html">Apri caselle</a>
+      <a href="index.html">Vista caselle</a>
     </nav>
   </header>
   <main>
-    <aside>
-      <form id="searchForm">
+    <section class="filters">
+      <h2>Filtri</h2>
+      <form id="searchForm" class="form-grid">
         <label>
           Testo da cercare
-          <input type="search" id="query" name="q" placeholder="Oggetto, mittente, contenuto..." autocomplete="off" required />
+          <input type="search" id="query" name="q" placeholder="Oggetto, mittente o contenuto" autocomplete="off" required />
         </label>
         <label>
           Casella
@@ -75,325 +349,385 @@
           Limite risultati
           <input type="number" id="limit" name="limit" min="1" max="500" value="100" />
         </label>
-        <button type="submit" id="searchButton">Cerca</button>
+        <button type="submit" id="searchButton">Avvia ricerca</button>
       </form>
-      <div class="status" id="status"></div>
-      <div class="results" id="results">
-        <div class="empty">Digita una parola chiave e avvia la ricerca.</div>
+      <div id="status" class="status"></div>
+    </section>
+    <section class="columns">
+      <div class="results-card">
+        <div class="results-top">
+          <strong>Risultati</strong>
+        </div>
+        <div class="results-list"></div>
       </div>
-    </aside>
-    <section>
-      <div class="viewer">
-        <div class="header">
-          <div class="subject" id="subject">Seleziona un risultato per leggere il messaggio</div>
+      <div class="viewer-card">
+        <div class="viewer-header">
+          <h3 class="subject" id="subject">Seleziona un risultato per leggere il messaggio</h3>
           <div class="meta" id="meta"></div>
           <div class="attachments" id="attachments"></div>
         </div>
-        <iframe id="body"></iframe>
+        <iframe id="body" class="viewer-body"></iframe>
       </div>
     </section>
   </main>
   <script>
-    const state = {
-      results: [],
-      selectedIndex: null
-    };
+const state = {
+  results: [],
+  selectedIndex: null,
+  queryTokens: []
+};
 
-    const encodePathSegments = (value) => {
-      if (!value) return '';
-      const parts = Array.isArray(value) ? value : value.replace(/\\/g, '/').split('/');
-      return parts
-        .filter(part => part !== undefined && part !== null && part !== '')
-        .map(part => encodeURIComponent(part))
-        .join('/');
-    };
+const describeError = (err) => {
+  if (!err) return 'errore sconosciuto';
+  if (typeof err === 'string') return err;
+  if (err.message) return err.message;
+  try {
+    return JSON.stringify(err);
+  } catch (jsonError) {
+    return String(err);
+  }
+};
 
-    const escapeHtml = (value) => {
-      if (value == null) return '';
-      return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    };
+const encodePathSegments = (value) => {
+  if (!value) return '';
+  const parts = Array.isArray(value) ? value : value.replace(/\\\\/g, '/').split('/');
+  return parts
+    .filter(part => part !== undefined && part !== null && part !== '')
+    .map(part => encodeURIComponent(part))
+    .join('/');
+};
 
-    const formatSize = (bytes) => {
-      if (!bytes || bytes <= 0) return '';
-      const kb = Math.max(1, Math.round(bytes / 1024));
-      return `${kb} KB`;
-    };
+const escapeHtml = (value) => {
+  if (value == null) return '';
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
 
-    const setStatus = (text, type) => {
-      const status = document.getElementById('status');
-      status.textContent = text || '';
-      status.className = 'status' + (type ? ' ' + type : '');
-    };
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    const describeError = (err) => {
-      if (!err) return 'errore sconosciuto';
-      if (typeof err === 'string') return err;
-      if (err.message) return err.message;
-      try {
-        return JSON.stringify(err);
-      } catch {
-        return String(err);
-      }
-    };
+const highlightText = (text, tokens) => {
+  if (text == null) return '';
+  const normalized = (tokens || []).filter(token => token && token.trim() !== '');
+  if (normalized.length === 0) return escapeHtml(text);
 
-    const loadAccounts = async () => {
-      const select = document.getElementById('account');
-      select.innerHTML = '<option value="">Tutte le caselle</option>';
-      try {
-        const res = await fetch('/api/accounts');
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || res.statusText || 'accounts');
-        }
-        const accounts = await res.json();
-        if (Array.isArray(accounts)) {
-          accounts.forEach(a => {
-            const opt = document.createElement('option');
-            opt.value = a;
-            opt.textContent = a;
-            select.appendChild(opt);
-          });
-          return accounts;
-        }
-        return [];
-      } catch (err) {
-        console.error('Caricamento caselle fallito', err);
-        setStatus(`Impossibile caricare l'elenco caselle: ${describeError(err)}`, 'error');
-        return [];
-      }
-    };
+  const pattern = new RegExp(normalized.map(escapeRegExp).join('|'), 'gi');
+  let last = 0;
+  let result = '';
+  let match;
 
-    const loadFolders = async (account, selectedFolder) => {
-      const select = document.getElementById('folder');
-      select.innerHTML = '<option value="">Tutte le cartelle</option>';
-      select.disabled = true;
-      if (!account) {
-        return [];
-      }
-      try {
-        const res = await fetch(`/api/folders/${encodeURIComponent(account)}`);
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || res.statusText || 'folders');
-        }
-        const folders = await res.json();
-        if (Array.isArray(folders) && folders.length > 0) {
-          folders.sort().forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            select.appendChild(opt);
-          });
-          select.disabled = false;
-          if (selectedFolder && folders.includes(selectedFolder)) {
-            select.value = selectedFolder;
-          }
-        }
-        return folders ?? [];
-      } catch (err) {
-        console.error('Caricamento cartelle fallito', err);
-        setStatus(`Impossibile caricare le cartelle per la casella selezionata: ${describeError(err)}`, 'error');
-        return [];
-      }
-    };
+  while ((match = pattern.exec(text)) !== null) {
+    const start = match.index;
+    if (start > last) {
+      result += escapeHtml(text.slice(last, start));
+    }
+    const segment = match[0];
+    if (segment.length === 0) {
+      result += escapeHtml(segment);
+      pattern.lastIndex += 1;
+    } else {
+      result += `<mark>${escapeHtml(segment)}</mark>`;
+    }
+    last = pattern.lastIndex;
+  }
 
-    const renderResults = () => {
-      const container = document.getElementById('results');
-      container.innerHTML = '';
-      if (state.results.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'empty';
-        empty.textContent = 'Nessun risultato trovato.';
-        container.appendChild(empty);
-        return;
-      }
-      state.results.forEach((result, index) => {
-        const div = document.createElement('div');
-        div.className = 'result' + (state.selectedIndex === index ? ' selected' : '');
-        div.dataset.index = index.toString();
-        const subject = result.subject && result.subject.trim() !== '' ? result.subject.trim() : '(senza oggetto)';
-        const folder = result.folder && result.folder !== '' ? result.folder : '(radice)';
-        const metaParts = [result.account, folder];
-        if (result.sent) metaParts.push(result.sent);
-        const sizeLabel = formatSize(result.size);
-        if (sizeLabel) metaParts.push(sizeLabel);
-        const meta = metaParts.filter(Boolean).join(' | ');
-        const snippet = result.snippet || '';
-        div.innerHTML = `
-          <div class="subject">${escapeHtml(subject)}</div>
-          <div class="meta">${escapeHtml(meta)}</div>
-          <div class="snippet">${escapeHtml(snippet)}</div>
-        `;
-        div.addEventListener('click', () => openResult(index));
-        container.appendChild(div);
-      });
-    };
+  if (last < text.length) {
+    result += escapeHtml(text.slice(last));
+  }
+  return result;
+};
 
-    const openResult = async (index) => {
-      if (index < 0 || index >= state.results.length) return;
-      state.selectedIndex = index;
-      renderResults();
-      const result = state.results[index];
-      const encodedAccount = encodeURIComponent(result.account);
-      const encodedPath = encodePathSegments(result.path.split('/'));
-      setStatus('Caricamento messaggio...', '');
-      try {
-        const res = await fetch(`/api/message/${encodedAccount}/${encodedPath}`);
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || res.statusText || 'message');
-        }
-        const data = await res.json();
-        const subject = data.headers.subject || result.subject || '(senza oggetto)';
-        document.getElementById('subject').textContent = subject;
-        const from = data.headers.from || '';
-        const to = data.headers.to || '';
-        const sent = result.sent || data.headers.date || '';
-        const metaParts = [];
-        if (from) metaParts.push(from);
-        if (to) metaParts.push('-> ' + to);
-        if (sent) metaParts.push(sent);
-        document.getElementById('meta').textContent = metaParts.join(' | ');
-        const iframe = document.getElementById('body');
-        const doc = iframe.contentDocument;
-        doc.open();
-        doc.write(data.body || '<pre style="white-space:pre-wrap"></pre>');
-        doc.close();
-        const attachments = document.getElementById('attachments');
-        attachments.innerHTML = '';
-        data.attachments.forEach(att => {
-          const link = document.createElement('a');
-          link.textContent = att.name;
-          link.href = `/api/attachment/${encodedAccount}/${encodedPath}?index=${att.index}`;
-          link.target = '_blank';
-          attachments.appendChild(link);
-        });
-        setStatus('', '');
-      } catch (err) {
-        console.error('Caricamento messaggio fallito', err);
-        setStatus(`Impossibile caricare il messaggio selezionato: ${describeError(err)}`, 'error');
-      }
-    };
+const formatSize = (bytes) => {
+  if (!bytes || bytes <= 0) return '';
+  const kb = Math.max(1, Math.round(bytes / 1024));
+  return `${kb} KB`;
+};
 
-    const performSearch = async (options = {}) => {
-      const queryInput = document.getElementById('query');
-      const accountSelect = document.getElementById('account');
-      const folderSelect = document.getElementById('folder');
-      const limitInput = document.getElementById('limit');
-      const button = document.getElementById('searchButton');
-      const query = queryInput.value.trim();
-      if (query.length === 0) {
-        setStatus('Inserisci almeno un termine di ricerca.', 'error');
-        return [];
-      }
-      const params = new URLSearchParams();
-      params.set('q', query);
-      const limit = parseInt(limitInput.value, 10);
-      if (!Number.isNaN(limit) && limit > 0) {
-        params.set('limit', Math.min(limit, 500));
-      }
-      if (accountSelect.value) {
-        params.set('account', accountSelect.value);
-      }
-      if (folderSelect.value) {
-        params.set('folder', folderSelect.value);
-      }
+const $ = (selector) => document.querySelector(selector);
 
-      const serialized = params.toString();
-      if (!options.skipHistory) {
-        const nextUrl = serialized ? `${window.location.pathname}?${serialized}` : window.location.pathname;
-        history.replaceState(null, '', nextUrl);
-      }
+const ui = {
+  form: $('#searchForm'),
+  status: $('#status'),
+  queryInput: $('#query'),
+  accountSelect: $('#account'),
+  folderSelect: $('#folder'),
+  limitInput: $('#limit'),
+  resultsContainer: $('.results-list'),
+  resultsWrapper: $('.results-card'),
+  subject: $('#subject'),
+  meta: $('#meta'),
+  attachments: $('#attachments'),
+  iframe: $('#body'),
+  counter: document.createElement('span')
+};
 
-      setStatus('Ricerca in corso...', '');
-      button.disabled = true;
-      state.selectedIndex = null;
-      try {
-        const res = await fetch(`/api/search?${serialized}`);
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || res.statusText || 'search');
-        }
-        const results = await res.json();
-        state.results = Array.isArray(results) ? results : [];
+const setStatus = (text, type) => {
+  ui.status.textContent = text || '';
+  ui.status.className = 'status' + (type ? ` ${type}` : '');
+};
 
-        if (state.results.length === 0) {
-          setStatus('Nessun messaggio trovato.', '');
-        } else {
-          setStatus(`${state.results.length} risultati`, 'success');
-        }
-        renderResults();
-        return state.results;
-      } catch (err) {
-        console.error('Ricerca fallita', err);
-        setStatus(`Ricerca non riuscita: ${describeError(err)}`, 'error');
-        state.results = [];
-        renderResults();
-        return [];
-      } finally {
-        button.disabled = false;
-      }
-    };
+const renderResults = () => {
+  const container = ui.resultsContainer;
+  container.innerHTML = '';
 
-    window.addEventListener('load', async () => {
-      const queryInput = document.getElementById('query');
-      const accountSelect = document.getElementById('account');
-      const folderSelect = document.getElementById('folder');
-      const limitInput = document.getElementById('limit');
+  if (state.results.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'Nessun risultato trovato.';
+    container.appendChild(empty);
+    ui.counter.textContent = '0 risultati';
+    return;
+  }
 
-      document.getElementById('searchForm').addEventListener('submit', (evt) => {
-        evt.preventDefault();
-        void performSearch();
-      });
+  ui.counter.textContent = `${state.results.length} risultati`;
 
-      accountSelect.addEventListener('change', async (evt) => {
-        await loadFolders(evt.target.value);
-      });
+  state.results.forEach((result, index) => {
+    const item = document.createElement('div');
+    item.className = 'result-item' + (state.selectedIndex === index ? ' selected' : '');
+    item.dataset.index = String(index);
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const initialQuery = urlParams.get('q') || '';
-      const initialAccount = urlParams.get('account') || '';
-      const initialFolder = urlParams.get('folder') || '';
-      const initialLimit = urlParams.get('limit');
+    const subject = result.subject && result.subject.trim() !== '' ? result.subject.trim() : '(senza oggetto)';
+    const folder = result.folder && result.folder !== '' ? result.folder : '(radice)';
+    const metaParts = [result.account, folder];
+    if (result.sent) metaParts.push(result.sent);
+    const sizeLabel = formatSize(result.size);
+    if (sizeLabel) metaParts.push(sizeLabel);
+    const meta = metaParts.filter(Boolean).join(' | ');
 
-      if (initialQuery) {
-        queryInput.value = initialQuery;
-      }
-      if (initialLimit) {
-        const parsedLimit = parseInt(initialLimit, 10);
-        if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
-          limitInput.value = Math.min(Math.max(parsedLimit, 1), 500);
-        }
-      }
+    item.innerHTML = `
+      <div class="subject">${highlightText(subject, state.queryTokens)}</div>
+      <div class="meta">${highlightText(meta, state.queryTokens)}</div>
+      <div class="snippet">${highlightText(result.snippet || '', state.queryTokens)}</div>
+    `;
 
-      const accounts = await loadAccounts();
+    item.addEventListener('click', () => openResult(index));
+    container.appendChild(item);
+  });
+};
 
-      if (initialAccount && accounts.includes(initialAccount)) {
-        accountSelect.value = initialAccount;
-        await loadFolders(initialAccount, initialFolder);
-      } else if (initialAccount) {
-                setStatus(`La casella "${initialAccount}" non e stata trovata.`, 'error');
-      }
+const openResult = async (index) => {
+  if (index < 0 || index >= state.results.length) return;
+  state.selectedIndex = index;
+  renderResults();
 
-      if (initialQuery) {
-        await performSearch({ skipHistory: true });
-      } else if (accounts.length === 0) {
-        setStatus('Nessuna casella trovata. Carica dei dati prima di procedere.', 'error');
-      } else {
-        setStatus('Pronto per la ricerca.', '');
-        queryInput.focus();
-      }
+  const result = state.results[index];
+  const encodedAccount = encodeURIComponent(result.account);
+  const encodedPath = encodePathSegments(result.path.split('/'));
+
+  setStatus('Caricamento messaggio...', '');
+  try {
+    const res = await fetch(`/api/message/${encodedAccount}/${encodedPath}`);
+    if (!res.ok) {
+      const message = await res.text();
+      throw new Error(message || res.statusText || 'message');
+    }
+    const data = await res.json();
+
+    const subject = data.headers.subject || result.subject || '(senza oggetto)';
+    const from = data.headers.from || '';
+    const to = data.headers.to || '';
+    const sent = result.sent || data.headers.date || '';
+    const metaPieces = [];
+    if (from) metaPieces.push(from);
+    if (to) metaPieces.push('-> ' + to);
+    if (sent) metaPieces.push(sent);
+    const meta = metaPieces.join(' | ');
+
+    ui.subject.innerHTML = highlightText(subject, state.queryTokens);
+    ui.meta.innerHTML = highlightText(meta, state.queryTokens);
+
+    const doc = ui.iframe.contentDocument;
+    doc.open();
+    doc.write(data.body || '<pre style="white-space:pre-wrap"></pre>');
+    doc.close();
+
+    ui.attachments.innerHTML = '';
+    data.attachments.forEach(att => {
+      const link = document.createElement('a');
+      link.textContent = att.name;
+      link.href = `/api/attachment/${encodedAccount}/${encodedPath}?index=${att.index}`;
+      link.target = '_blank';
+      ui.attachments.appendChild(link);
     });
-  </script>
+
+    setStatus('', '');
+  } catch (err) {
+    console.error('Caricamento messaggio fallito', err);
+    setStatus(`Impossibile caricare il messaggio selezionato: ${describeError(err)}`, 'error');
+  }
+};
+
+const performSearch = async (options = {}) => {
+  const query = ui.queryInput.value.trim();
+  if (query.length === 0) {
+    setStatus('Inserisci almeno un termine di ricerca.', 'error');
+    return [];
+  }
+
+  state.queryTokens = query.split(/\s+/).filter(token => token && token.length > 0);
+
+  const params = new URLSearchParams();
+  params.set('q', query);
+
+  const limit = parseInt(ui.limitInput.value, 10);
+  if (!Number.isNaN(limit) && limit > 0) {
+    params.set('limit', Math.min(limit, 500));
+  }
+  if (ui.accountSelect.value) params.set('account', ui.accountSelect.value);
+  if (ui.folderSelect.value) params.set('folder', ui.folderSelect.value);
+
+  const serialized = params.toString();
+  if (!options.skipHistory) {
+    const nextUrl = serialized ? `${window.location.pathname}?${serialized}` : window.location.pathname;
+    history.replaceState(null, '', nextUrl);
+  }
+
+  setStatus('Ricerca in corso...', '');
+  ui.form.querySelector('button[type="submit"]').disabled = true;
+  state.selectedIndex = null;
+
+  try {
+    const res = await fetch(`/api/search?${serialized}`);
+    if (!res.ok) {
+      const message = await res.text();
+      throw new Error(message || res.statusText || 'search');
+    }
+    const results = await res.json();
+    state.results = Array.isArray(results) ? results : [];
+
+    if (state.results.length === 0) {
+      setStatus('Nessun messaggio trovato.', '');
+    } else {
+      setStatus(`${state.results.length} risultati`, 'success');
+    }
+
+    renderResults();
+    return state.results;
+  } catch (err) {
+    console.error('Ricerca fallita', err);
+    setStatus(`Ricerca non riuscita: ${describeError(err)}`, 'error');
+    state.results = [];
+    renderResults();
+    return [];
+  } finally {
+    ui.form.querySelector('button[type="submit"]').disabled = false;
+  }
+};
+
+const loadAccounts = async () => {
+  const select = ui.accountSelect;
+  select.innerHTML = '<option value="">Tutte le caselle</option>';
+  try {
+    const res = await fetch('/api/accounts');
+    if (!res.ok) {
+      const message = await res.text();
+      throw new Error(message || res.statusText || 'accounts');
+    }
+    const accounts = await res.json();
+    if (Array.isArray(accounts)) {
+      accounts.forEach(account => {
+        const opt = document.createElement('option');
+        opt.value = account;
+        opt.textContent = account;
+        select.appendChild(opt);
+      });
+      return accounts;
+    }
+    return [];
+  } catch (err) {
+    console.error('Caricamento caselle fallito', err);
+    setStatus(`Impossibile caricare l'elenco caselle: ${describeError(err)}`, 'error');
+    return [];
+  }
+};
+
+const loadFolders = async (account, selectedFolder) => {
+  const select = ui.folderSelect;
+  select.innerHTML = '<option value="">Tutte le cartelle</option>';
+  select.disabled = true;
+
+  if (!account) return [];
+
+  try {
+    const res = await fetch(`/api/folders/${encodeURIComponent(account)}`);
+    if (!res.ok) {
+      const message = await res.text();
+      throw new Error(message || res.statusText || 'folders');
+    }
+    const folders = await res.json();
+    if (Array.isArray(folders) && folders.length > 0) {
+      folders.sort().forEach(folder => {
+        const opt = document.createElement('option');
+        opt.value = folder;
+        opt.textContent = folder;
+        select.appendChild(opt);
+      });
+      select.disabled = false;
+      if (selectedFolder && folders.includes(selectedFolder)) {
+        select.value = selectedFolder;
+      }
+    }
+    return folders ?? [];
+  } catch (err) {
+    console.error('Caricamento cartelle fallito', err);
+    setStatus(`Impossibile caricare le cartelle per la casella selezionata: ${describeError(err)}`, 'error');
+    return [];
+  }
+};
+
+const initialize = async () => {
+  const params = new URLSearchParams(window.location.search);
+  const initialQuery = params.get('q') || '';
+  const initialAccount = params.get('account') || '';
+  const initialFolder = params.get('folder') || '';
+  const initialLimit = params.get('limit');
+
+  ui.queryInput.value = initialQuery;
+  if (initialLimit) {
+    const parsed = parseInt(initialLimit, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      ui.limitInput.value = Math.min(Math.max(parsed, 1), 500);
+    }
+  }
+
+  const counterHost = document.querySelector('.results-top');
+  ui.counter.className = 'results-count';
+  counterHost.appendChild(ui.counter);
+  ui.counter.textContent = '0 risultati';
+
+  const accounts = await loadAccounts();
+  if (initialAccount && accounts.includes(initialAccount)) {
+    ui.accountSelect.value = initialAccount;
+    await loadFolders(initialAccount, initialFolder);
+  } else if (initialAccount) {
+    setStatus(`La casella "${initialAccount}" non e stata trovata.`, 'error');
+  }
+
+  ui.form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void performSearch();
+  });
+
+  ui.accountSelect.addEventListener('change', async (event) => {
+    await loadFolders(event.target.value);
+  });
+
+  if (initialQuery) {
+    await performSearch({ skipHistory: true });
+  } else if (accounts.length === 0) {
+    setStatus('Nessuna casella trovata. Carica dei dati prima di procedere.', 'error');
+  } else {
+    setStatus('Pronto per la ricerca.', '');
+    ui.queryInput.focus();
+  }
+};
+
+window.addEventListener('load', () => {
+  void initialize();
+});
+</script>
 </body>
 </html>
-
-
-
-
-
