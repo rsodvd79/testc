@@ -110,10 +110,39 @@ public static class Program
     {
         var accountLabel = string.IsNullOrWhiteSpace(account.Name) ? account.Username : account.Name;
         using var client = new ImapClient();
-        await client.ConnectAsync(account.Host, account.Port, account.UseSsl);
-        await client.AuthenticateAsync(account.Username, account.Password);
+        
+        // Aggiungo timeout e logging per diagnostica
+        logger.LogInformation("Connecting to IMAP server {Host}:{Port} (SSL: {UseSsl}) for account {Account}", 
+            account.Host, account.Port, account.UseSsl, accountLabel);
+            
+        client.Timeout = 30000; // 30 secondi di timeout
+        
+        try
+        {
+            await client.ConnectAsync(account.Host, account.Port, account.UseSsl);
+            logger.LogInformation("Successfully connected to {Host}:{Port} for account {Account}", 
+                account.Host, account.Port, accountLabel);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to connect to {Host}:{Port} for account {Account}", 
+                account.Host, account.Port, accountLabel);
+            throw;
+        }
+        
+        try
+        {
+            await client.AuthenticateAsync(account.Username, account.Password);
+            logger.LogInformation("Successfully authenticated for account {Account}", accountLabel);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to authenticate for account {Account}", accountLabel);
+            throw;
+        }
 
         await client.Inbox.OpenAsync(FolderAccess.ReadOnly);
+        logger.LogInformation("Opened INBOX for account {Account} - {Count} messages", accountLabel, client.Inbox.Count);
 
         var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -175,23 +204,47 @@ public static class Program
             Directory.CreateDirectory(folderPath);
 
             await folder.OpenAsync(FolderAccess.ReadOnly);
+            logger.LogInformation("Processing folder {FolderName} with {Count} messages", folder.FullName, folder.Count);
 
             await File.WriteAllTextAsync(Path.Combine(folderPath, ".folder"), $"UIDVALIDITY={folder.UidValidity}\nTotal={folder.Count}\n");
 
             if (folder.Count > 0)
             {
                 var uids = await folder.SearchAsync(MailKit.Search.SearchQuery.All);
+                logger.LogInformation("Found {UidCount} UIDs to process in folder {FolderName}", uids.Count, folder.FullName);
+                
+                int processed = 0;
+                int skipped = 0;
+                
                 foreach (var uid in uids)
                 {
                     var emlPath = Path.Combine(folderPath, $"{uid}.eml");
                     if (File.Exists(emlPath))
+                    {
+                        skipped++;
                         continue;
+                    }
 
-                    var message = await folder.GetMessageAsync(uid);
-                    await using var stream = File.Open(emlPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                    await message.WriteToAsync(stream, CancellationToken.None);
-                    logger.LogInformation("Saved {Path}", emlPath);
+                    try
+                    {
+                        var message = await folder.GetMessageAsync(uid);
+                        await using var stream = File.Open(emlPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                        await message.WriteToAsync(stream, CancellationToken.None);
+                        processed++;
+                        
+                        if (processed % 10 == 0)
+                        {
+                            logger.LogInformation("Processed {Processed} messages in folder {FolderName}", processed, folder.FullName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Error processing message UID {Uid} in folder {FolderName}", uid, folder.FullName);
+                    }
                 }
+                
+                logger.LogInformation("Completed folder {FolderName}: processed {Processed}, skipped {Skipped}", 
+                    folder.FullName, processed, skipped);
             }
         }
         catch (Exception ex)
