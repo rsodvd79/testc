@@ -27,6 +27,8 @@ public partial class MailViewerForm : Form
     private string? _lastFaviconUri;
     private Icon? _currentFavicon;
 
+    private StatusStrip? _statusStripControl;
+    private System.Windows.Forms.Timer? _statusClearTimer;
     private const string LoadingPageHtml = """
 <!doctype html>
 <html lang="it">
@@ -87,11 +89,15 @@ public partial class MailViewerForm : Form
     public MailViewerForm()
     {
         InitializeComponent();
+        _statusStripControl = statusStrip;
+        _statusClearTimer = new System.Windows.Forms.Timer { Interval = 30_000 };
+        _statusClearTimer.Tick += (_, _) => UpdateStatusBar(string.Empty);
         Shown += MailViewerForm_ShownAsync;
         FormClosed += MailViewerForm_FormClosedAsync;
         webView.CoreWebView2InitializationCompleted += WebView_CoreWebView2InitializationCompleted;
         webView.NavigationCompleted += WebView_NavigationCompleted;
         webView.NavigationStarting += WebView_NavigationStarting;
+        UpdateStatusBar("Pronto");
     }
 
     private async void MailViewerForm_ShownAsync(object? sender, EventArgs e)
@@ -111,11 +117,8 @@ public partial class MailViewerForm : Form
             if (string.IsNullOrWhiteSpace(runtimeVersion))
             {
                 Log("InitializeAsync: WebView2 runtime not found");
-                MessageBox.Show(this,
-                    "Non è stato trovato il runtime Microsoft Edge WebView2. Installalo dal sito Microsoft per poter visualizzare i contenuti.",
-                    "WebView2 mancante",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                var runtimeMissingMessage = "Non � stato trovato il runtime Microsoft Edge WebView2. Installalo dal sito Microsoft per poter visualizzare i contenuti.";
+                UpdateStatusBar(runtimeMissingMessage);
                 return;
             }
 
@@ -278,10 +281,63 @@ public partial class MailViewerForm : Form
             var errorMessage = $"Errore durante l'avvio dell'applicazione web: {ex}";
             Console.Error.WriteLine(errorMessage);
             Debug.WriteLine(ex);
-            MessageBox.Show(this, $"Errore durante l'avvio dell'applicazione web: {ex.Message}", "Errore", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            var startupErrorMessage = $"Errore durante l'avvio dell'applicazione web: {ex.Message}";
+            UpdateStatusBar(startupErrorMessage);
             Log($"InitializeAsync: exception {ex}");
             Close();
         }
+    }
+
+
+    private void UpdateStatusBar(string? message)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action<string?>(UpdateStatusBar), message);
+            return;
+        }
+
+        if (IsDisposed || Disposing || statusLabel.IsDisposed)
+        {
+            return;
+        }
+
+        _statusClearTimer?.Stop();
+
+        var resolved = string.IsNullOrWhiteSpace(message) ? " " : message;
+        statusLabel.Text = resolved;
+        statusLabel.ToolTipText = message ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            _statusClearTimer?.Start();
+        }
+    }
+
+    private void CoreWebView2_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        string message;
+        try
+        {
+            message = e.TryGetWebMessageAsString();
+        }
+        catch
+        {
+            message = string.Empty;
+        }
+
+        if (string.IsNullOrEmpty(message))
+        {
+            message = e.WebMessageAsJson;
+        }
+
+        if (message.Length > 400)
+        {
+            message = message.Substring(0, 400) + "...";
+        }
+
+        Log($"[WebView2] WebMessageReceived {message}");
+        UpdateStatusBar(message);
     }
 
 
@@ -518,7 +574,8 @@ public partial class MailViewerForm : Form
                 {
                     BeginInvoke(new Action(() =>
                     {
-                        MessageBox.Show(this, $"WebView2 non è riuscito a caricare la pagina: {args.WebErrorStatus}", "WebView2", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        var statusMessage = $"WebView2 non è riuscito a caricare la pagina: {args.WebErrorStatus}";
+                        UpdateStatusBar(statusMessage);
                     }));
                 }
             };
@@ -538,6 +595,7 @@ public partial class MailViewerForm : Form
             {
                 Log($"[WebView2] ProcessFailed Kind={args.ProcessFailedKind}");
             };
+            webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
             webView.CoreWebView2.FaviconChanged += (_, _) => _ = RefreshFaviconAsync();
             webView.CoreWebView2.OpenDevToolsWindow();
             Log("CoreWebView2InitializationCompleted: DevTools window requested");
@@ -594,6 +652,10 @@ public partial class MailViewerForm : Form
             _currentFavicon?.Dispose();
             _currentFavicon = null;
             _lastFaviconUri = null;
+            _statusClearTimer?.Stop();
+            _statusClearTimer?.Dispose();
+            _statusClearTimer = null;
+            _statusStripControl = null;
             Log("FormClosedAsync: backend disposed");
         }
     }

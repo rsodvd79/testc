@@ -13,6 +13,8 @@ partial class MailViewerForm
     private Button zoomResetButton;
     private Button zoomOutButton;
     private Button zoomInButton;
+    private StatusStrip statusStrip;
+    private ToolStripStatusLabel statusLabel;
 
 
     protected override void Dispose(bool disposing)
@@ -35,6 +37,8 @@ partial class MailViewerForm
         zoomResetButton = new Button();
         zoomOutButton = new Button();
         zoomInButton = new Button();
+        statusStrip = new StatusStrip();
+        statusLabel = new ToolStripStatusLabel();
         webView = new Microsoft.Web.WebView2.WinForms.WebView2();
         SuspendLayout();
         // 
@@ -97,6 +101,26 @@ partial class MailViewerForm
         zoomInButton.UseVisualStyleBackColor = true;
         zoomInButton.Click += ZoomInButton_Click;
         // 
+        // statusStrip
+        // 
+        statusStrip.Dock = DockStyle.Bottom;
+        statusStrip.Items.AddRange(new ToolStripItem[] { statusLabel });
+        statusStrip.Location = new Point(0, 639);
+        statusStrip.Name = "statusStrip";
+        statusStrip.Padding = new Padding(1, 0, 10, 0);
+        statusStrip.Size = new Size(984, 22);
+        statusStrip.SizingGrip = false;
+        statusStrip.TabIndex = 2;
+        statusStrip.Text = "statusStrip";
+        // 
+        // statusLabel
+        // 
+        statusLabel.Name = "statusLabel";
+        statusLabel.Size = new Size(973, 17);
+        statusLabel.Spring = true;
+        statusLabel.Text = "Pronto";
+        statusLabel.TextAlign = ContentAlignment.MiddleLeft;
+        // 
         // webView
         // 
         webView.AllowExternalDrop = true;
@@ -105,7 +129,7 @@ partial class MailViewerForm
         webView.Dock = DockStyle.Fill;
         webView.Location = new Point(0, 48);
         webView.Name = "webView";
-        webView.Size = new Size(984, 661);
+        webView.Size = new Size(984, 591);
         webView.TabIndex = 0;
         webView.ZoomFactor = 1D;
         // 
@@ -119,6 +143,7 @@ partial class MailViewerForm
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(984, 661);
         Controls.Add(webView);
+        Controls.Add(statusStrip);
         Controls.Add(toolbarPanel);
         Name = "MailViewerForm";
         Text = "Mail Viewer";
