@@ -9,6 +9,7 @@ partial class MailViewerForm
     private System.ComponentModel.IContainer components;
     private Microsoft.Web.WebView2.WinForms.WebView2 webView;
     private FlowLayoutPanel toolbarPanel;
+    private Button homeButton;
     private Button refreshButton;
     private Button zoomResetButton;
     private Button zoomOutButton;
@@ -33,6 +34,7 @@ partial class MailViewerForm
     {
         components = new System.ComponentModel.Container();
         toolbarPanel = new FlowLayoutPanel();
+        homeButton = new Button();
         refreshButton = new Button();
         zoomResetButton = new Button();
         zoomOutButton = new Button();
@@ -53,6 +55,18 @@ partial class MailViewerForm
         toolbarPanel.TabIndex = 1;
         toolbarPanel.WrapContents = false;
         // 
+        // homeButton
+        // 
+        homeButton.AutoSize = true;
+        homeButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        homeButton.Margin = new Padding(0, 0, 8, 0);
+        homeButton.Name = "homeButton";
+        homeButton.Size = new Size(55, 25);
+        homeButton.TabIndex = 0;
+        homeButton.Text = "Home";
+        homeButton.UseVisualStyleBackColor = true;
+        homeButton.Click += HomeButton_Click;
+        // 
         // refreshButton
         // 
         refreshButton.AutoSize = true;
@@ -60,7 +74,7 @@ partial class MailViewerForm
         refreshButton.Margin = new Padding(0, 0, 8, 0);
         refreshButton.Name = "refreshButton";
         refreshButton.Size = new Size(70, 25);
-        refreshButton.TabIndex = 0;
+        refreshButton.TabIndex = 1;
         refreshButton.Text = "Aggiorna";
         refreshButton.UseVisualStyleBackColor = true;
         refreshButton.Click += RefreshButton_Click;
@@ -72,7 +86,7 @@ partial class MailViewerForm
         zoomResetButton.Margin = new Padding(0, 0, 8, 0);
         zoomResetButton.Name = "zoomResetButton";
         zoomResetButton.Size = new Size(84, 25);
-        zoomResetButton.TabIndex = 1;
+        zoomResetButton.TabIndex = 2;
         zoomResetButton.Text = "Zoom 100%";
         zoomResetButton.UseVisualStyleBackColor = true;
         zoomResetButton.Click += ZoomResetButton_Click;
@@ -84,7 +98,7 @@ partial class MailViewerForm
         zoomOutButton.Margin = new Padding(0, 0, 8, 0);
         zoomOutButton.Name = "zoomOutButton";
         zoomOutButton.Size = new Size(81, 25);
-        zoomOutButton.TabIndex = 2;
+        zoomOutButton.TabIndex = 3;
         zoomOutButton.Text = "Zoom -5%";
         zoomOutButton.UseVisualStyleBackColor = true;
         zoomOutButton.Click += ZoomOutButton_Click;
@@ -96,7 +110,7 @@ partial class MailViewerForm
         zoomInButton.Margin = new Padding(0, 0, 0, 0);
         zoomInButton.Name = "zoomInButton";
         zoomInButton.Size = new Size(78, 25);
-        zoomInButton.TabIndex = 3;
+        zoomInButton.TabIndex = 4;
         zoomInButton.Text = "Zoom +5%";
         zoomInButton.UseVisualStyleBackColor = true;
         zoomInButton.Click += ZoomInButton_Click;
@@ -135,6 +149,7 @@ partial class MailViewerForm
         // 
         // MailViewerForm
         // 
+        toolbarPanel.Controls.Add(homeButton);
         toolbarPanel.Controls.Add(refreshButton);
         toolbarPanel.Controls.Add(zoomResetButton);
         toolbarPanel.Controls.Add(zoomOutButton);

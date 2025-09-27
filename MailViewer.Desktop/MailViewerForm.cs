@@ -90,7 +90,7 @@ public partial class MailViewerForm : Form
     {
         InitializeComponent();
         _statusStripControl = statusStrip;
-        _statusClearTimer = new System.Windows.Forms.Timer { Interval = 30_000 };
+        _statusClearTimer = new System.Windows.Forms.Timer { Interval = 10_000 };
         _statusClearTimer.Tick += (_, _) => UpdateStatusBar(string.Empty);
         Shown += MailViewerForm_ShownAsync;
         FormClosed += MailViewerForm_FormClosedAsync;
@@ -117,7 +117,7 @@ public partial class MailViewerForm : Form
             if (string.IsNullOrWhiteSpace(runtimeVersion))
             {
                 Log("InitializeAsync: WebView2 runtime not found");
-                var runtimeMissingMessage = "Non è stato trovato il runtime Microsoft Edge WebView2. Installalo dal sito Microsoft per poter visualizzare i contenuti.";
+                var runtimeMissingMessage = "Non ï¿½ stato trovato il runtime Microsoft Edge WebView2. Installalo dal sito Microsoft per poter visualizzare i contenuti.";
                 UpdateStatusBar(runtimeMissingMessage);
                 return;
             }
@@ -338,6 +338,47 @@ public partial class MailViewerForm : Form
 
         Log($"[WebView2] WebMessageReceived {message}");
         UpdateStatusBar(message);
+    }
+
+
+    private void HomeButton_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            Log("Toolbar: home requested");
+
+            Uri baseUri;
+            if (webView.CoreWebView2 != null && Uri.TryCreate(webView.CoreWebView2.Source, UriKind.Absolute, out var coreUri))
+            {
+                baseUri = coreUri;
+            }
+            else if (webView.Source != null)
+            {
+                baseUri = webView.Source;
+            }
+            else
+            {
+                baseUri = new Uri("http://127.0.0.1/");
+            }
+
+            var targetUri = new Uri(baseUri, "index.html");
+
+            if (webView.CoreWebView2 != null)
+            {
+                webView.CoreWebView2.Navigate(targetUri.ToString());
+            }
+            else
+            {
+                webView.Source = targetUri;
+            }
+
+            UpdateStatusBar("Navigazione alla home");
+        }
+        catch (Exception ex)
+        {
+            Log($"Toolbar: home failed {ex}");
+            UpdateStatusBar($"Errore durante la navigazione alla home: {ex.Message}");
+        }
     }
 
 
