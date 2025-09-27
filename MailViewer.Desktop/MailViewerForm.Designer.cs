@@ -8,6 +8,12 @@ partial class MailViewerForm
 {
     private System.ComponentModel.IContainer components;
     private Microsoft.Web.WebView2.WinForms.WebView2 webView;
+    private FlowLayoutPanel toolbarPanel;
+    private Button refreshButton;
+    private Button zoomResetButton;
+    private Button zoomOutButton;
+    private Button zoomInButton;
+
 
     protected override void Dispose(bool disposing)
     {
@@ -24,8 +30,72 @@ partial class MailViewerForm
     private void InitializeComponent()
     {
         components = new System.ComponentModel.Container();
+        toolbarPanel = new FlowLayoutPanel();
+        refreshButton = new Button();
+        zoomResetButton = new Button();
+        zoomOutButton = new Button();
+        zoomInButton = new Button();
         webView = new Microsoft.Web.WebView2.WinForms.WebView2();
         SuspendLayout();
+        // 
+        // toolbarPanel
+        // 
+        toolbarPanel.Dock = DockStyle.Top;
+        toolbarPanel.FlowDirection = FlowDirection.LeftToRight;
+        toolbarPanel.Location = new Point(0, 0);
+        toolbarPanel.Name = "toolbarPanel";
+        toolbarPanel.Padding = new Padding(8, 8, 8, 8);
+        toolbarPanel.Size = new Size(984, 48);
+        toolbarPanel.TabIndex = 1;
+        toolbarPanel.WrapContents = false;
+        // 
+        // refreshButton
+        // 
+        refreshButton.AutoSize = true;
+        refreshButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        refreshButton.Margin = new Padding(0, 0, 8, 0);
+        refreshButton.Name = "refreshButton";
+        refreshButton.Size = new Size(70, 25);
+        refreshButton.TabIndex = 0;
+        refreshButton.Text = "Aggiorna";
+        refreshButton.UseVisualStyleBackColor = true;
+        refreshButton.Click += RefreshButton_Click;
+        // 
+        // zoomResetButton
+        // 
+        zoomResetButton.AutoSize = true;
+        zoomResetButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        zoomResetButton.Margin = new Padding(0, 0, 8, 0);
+        zoomResetButton.Name = "zoomResetButton";
+        zoomResetButton.Size = new Size(84, 25);
+        zoomResetButton.TabIndex = 1;
+        zoomResetButton.Text = "Zoom 100%";
+        zoomResetButton.UseVisualStyleBackColor = true;
+        zoomResetButton.Click += ZoomResetButton_Click;
+        // 
+        // zoomOutButton
+        // 
+        zoomOutButton.AutoSize = true;
+        zoomOutButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        zoomOutButton.Margin = new Padding(0, 0, 8, 0);
+        zoomOutButton.Name = "zoomOutButton";
+        zoomOutButton.Size = new Size(81, 25);
+        zoomOutButton.TabIndex = 2;
+        zoomOutButton.Text = "Zoom -5%";
+        zoomOutButton.UseVisualStyleBackColor = true;
+        zoomOutButton.Click += ZoomOutButton_Click;
+        // 
+        // zoomInButton
+        // 
+        zoomInButton.AutoSize = true;
+        zoomInButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        zoomInButton.Margin = new Padding(0, 0, 0, 0);
+        zoomInButton.Name = "zoomInButton";
+        zoomInButton.Size = new Size(78, 25);
+        zoomInButton.TabIndex = 3;
+        zoomInButton.Text = "Zoom +5%";
+        zoomInButton.UseVisualStyleBackColor = true;
+        zoomInButton.Click += ZoomInButton_Click;
         // 
         // webView
         // 
@@ -33,7 +103,7 @@ partial class MailViewerForm
         webView.CreationProperties = null;
         webView.DefaultBackgroundColor = Color.White;
         webView.Dock = DockStyle.Fill;
-        webView.Location = new Point(0, 0);
+        webView.Location = new Point(0, 48);
         webView.Name = "webView";
         webView.Size = new Size(984, 661);
         webView.TabIndex = 0;
@@ -41,10 +111,15 @@ partial class MailViewerForm
         // 
         // MailViewerForm
         // 
+        toolbarPanel.Controls.Add(refreshButton);
+        toolbarPanel.Controls.Add(zoomResetButton);
+        toolbarPanel.Controls.Add(zoomOutButton);
+        toolbarPanel.Controls.Add(zoomInButton);
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(984, 661);
         Controls.Add(webView);
+        Controls.Add(toolbarPanel);
         Name = "MailViewerForm";
         Text = "Mail Viewer";
         StartPosition = FormStartPosition.CenterScreen;

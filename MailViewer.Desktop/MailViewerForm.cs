@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -21,6 +23,9 @@ public partial class MailViewerForm : Form
     private WebApplication? _webApp;
     private CancellationTokenSource? _webAppCts;
     private readonly int _uiThreadId = Environment.CurrentManagedThreadId;
+    private static readonly HttpClient FaviconHttpClient = new();
+    private string? _lastFaviconUri;
+    private Icon? _currentFavicon;
 
     private const string LoadingPageHtml = """
 <!doctype html>
@@ -266,6 +271,7 @@ public partial class MailViewerForm : Form
 
             webView.Source = navigationUri;
             Log("InitializeAsync: navigation assigned to WebView2 control");
+            _ = RefreshFaviconAsync();
         }
         catch (Exception ex)
         {
@@ -277,6 +283,174 @@ public partial class MailViewerForm : Form
             Close();
         }
     }
+
+
+    private void RefreshButton_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (webView.CoreWebView2 != null)
+            {
+                Log("Toolbar: refresh requested");
+                webView.CoreWebView2.Reload();
+            }
+            else if (webView.Source != null)
+            {
+                Log("Toolbar: refresh fallback via navigation restart");
+                try
+                {
+                    var currentSource = webView.Source;
+                    if (currentSource != null)
+                    {
+                        webView.Source = new Uri(currentSource.ToString());
+                    }
+                }
+                catch (Exception navEx)
+                {
+                    Log($"Toolbar: refresh fallback failed {navEx.Message}");
+                }
+            }
+            else
+            {
+                Log("Toolbar: refresh ignored, WebView2 not ready");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Toolbar: refresh failed {ex}");
+        }
+    }
+
+    private void ZoomResetButton_Click(object? sender, EventArgs e)
+    {
+        SetZoomFactor(1.0);
+    }
+
+    private void ZoomOutButton_Click(object? sender, EventArgs e)
+    {
+        ChangeZoomBy(-0.05);
+    }
+
+    private void ZoomInButton_Click(object? sender, EventArgs e)
+    {
+        ChangeZoomBy(0.05);
+    }
+
+    private void ChangeZoomBy(double delta)
+    {
+        var current = webView.ZoomFactor;
+        SetZoomFactor(current + delta);
+    }
+
+    private void SetZoomFactor(double value)
+    {
+        var target = Math.Clamp(value, 0.25, 3.0);
+        if (Math.Abs(webView.ZoomFactor - target) < 0.0001)
+        {
+            return;
+        }
+
+        try
+        {
+            webView.ZoomFactor = target;
+            Log($"Toolbar: zoom set to {Math.Round(target * 100)}%");
+        }
+        catch (Exception ex)
+        {
+            Log($"Toolbar: zoom change failed {ex}");
+        }
+    }
+
+
+    private async Task RefreshFaviconAsync()
+    {
+        try
+        {
+            var core = webView.CoreWebView2;
+            if (core == null)
+            {
+                return;
+            }
+
+            var faviconUri = core.FaviconUri;
+            if (string.IsNullOrWhiteSpace(faviconUri))
+            {
+                return;
+            }
+
+            if (!Uri.TryCreate(faviconUri, UriKind.Absolute, out var uri))
+            {
+                Log($"RefreshFaviconAsync: invalid favicon URI '{faviconUri}'");
+                return;
+            }
+
+            if (string.Equals(faviconUri, _lastFaviconUri, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            Log($"RefreshFaviconAsync: downloading {uri}");
+            byte[] iconBytes;
+            try
+            {
+                iconBytes = await FaviconHttpClient.GetByteArrayAsync(uri);
+            }
+            catch (Exception ex)
+            {
+                Log($"RefreshFaviconAsync: download failed {ex.Message}");
+                return;
+            }
+
+            if (iconBytes.Length == 0)
+            {
+                Log("RefreshFaviconAsync: received empty favicon bytes");
+                return;
+            }
+
+            void ApplyIcon()
+            {
+                if (IsDisposed || Disposing)
+                {
+                    return;
+                }
+
+                try
+                {
+                    using var ms = new MemoryStream(iconBytes);
+                    using var iconTemp = new Icon(ms);
+                    var clone = (Icon)iconTemp.Clone();
+                    _currentFavicon?.Dispose();
+                    _currentFavicon = clone;
+                    Icon = _currentFavicon;
+                    _lastFaviconUri = faviconUri;
+                    Log($"RefreshFaviconAsync: icon updated from {faviconUri}");
+                }
+                catch (Exception ex)
+                {
+                    Log($"RefreshFaviconAsync: failed to apply favicon {ex}");
+                }
+            }
+
+            if (InvokeRequired)
+            {
+                if (!IsHandleCreated)
+                {
+                    return;
+                }
+
+                BeginInvoke((Action)ApplyIcon);
+            }
+            else
+            {
+                ApplyIcon();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"RefreshFaviconAsync: unexpected error {ex}");
+        }
+    }
+
 
     private static bool IsPortInUseException(Exception ex)
     {
@@ -364,8 +538,10 @@ public partial class MailViewerForm : Form
             {
                 Log($"[WebView2] ProcessFailed Kind={args.ProcessFailedKind}");
             };
+            webView.CoreWebView2.FaviconChanged += (_, _) => _ = RefreshFaviconAsync();
             webView.CoreWebView2.OpenDevToolsWindow();
             Log("CoreWebView2InitializationCompleted: DevTools window requested");
+            _ = RefreshFaviconAsync();
         }
         else
         {
@@ -376,6 +552,7 @@ public partial class MailViewerForm : Form
     private void WebView_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         Log($"MailViewer: NavigationCompleted Source={webView.Source} Success={e.IsSuccess} Status={e.WebErrorStatus}");
+        _ = RefreshFaviconAsync();
     }
 
     private void WebView_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
@@ -414,6 +591,9 @@ public partial class MailViewerForm : Form
             _webApp = null;
             _webAppCts?.Dispose();
             _webAppCts = null;
+            _currentFavicon?.Dispose();
+            _currentFavicon = null;
+            _lastFaviconUri = null;
             Log("FormClosedAsync: backend disposed");
         }
     }
