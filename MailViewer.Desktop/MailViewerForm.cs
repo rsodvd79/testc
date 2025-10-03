@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -166,6 +167,7 @@ public partial class MailViewerForm : Form
             {
                 ContentRootPath = contentRoot,
                 WebRootPath = webRoot,
+                EnvironmentName = Environments.Development,
                 Urls = new[] { $"http://127.0.0.1:{availablePort}" }
             };
             Log($"InitializeAsync: options prepared ContentRoot='{options.ContentRootPath}' Urls=[{string.Join(",", options.Urls)}]");

@@ -26,6 +26,10 @@ public static class MailViewerApp
         };
 
         var builder = WebApplication.CreateBuilder(builderOptions);
+        if (!string.IsNullOrWhiteSpace(options.EnvironmentName))
+        {
+            builder.Environment.EnvironmentName = options.EnvironmentName;
+        }
 
         var urls = options.Urls.Where(u => !string.IsNullOrWhiteSpace(u)).ToArray();
         if (urls.Length > 0)
@@ -894,6 +898,7 @@ public static class MailViewerApp
         public string? ContentRootPath { get; init; }
         public string[] Urls { get; init; } = Array.Empty<string>();
         public string? WebRootPath { get; init; }
+        public string? EnvironmentName { get; init; }
     }
 
     static class PathHelpers
