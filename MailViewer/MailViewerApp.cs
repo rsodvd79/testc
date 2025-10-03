@@ -487,8 +487,22 @@ public static class MailViewerApp
                 ctx.Response.Headers["WWW-Authenticate"] = "Basic realm=\"MailViewer Admin\"";
                 return Results.Unauthorized();
             }
-            var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "wwwroot", "admin.html");
-            return Results.File(path, "text/html; charset=utf-8");
+ 
+            var webRoot = app.Environment.WebRootPath;
+            if (string.IsNullOrWhiteSpace(webRoot))
+            {
+                app.Logger.LogWarning("WebRootPath not configured; unable to serve admin.html");
+                return Results.NotFound();
+            }
+ 
+            var adminPagePath = Path.Combine(webRoot, "admin.html");
+            if (!File.Exists(adminPagePath))
+            {
+                app.Logger.LogWarning("admin.html not found under WebRootPath '{WebRootPath}'", webRoot);
+                return Results.NotFound();
+            }
+ 
+            return Results.File(adminPagePath, "text/html; charset=utf-8");
         });
 
         // --- AdminAuth management ---

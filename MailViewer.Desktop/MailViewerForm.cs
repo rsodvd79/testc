@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Text.Json;
 using MailViewer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections;
@@ -26,6 +27,12 @@ public partial class MailViewerForm : Form
     private static readonly HttpClient FaviconHttpClient = new();
     private string? _lastFaviconUri;
     private Icon? _currentFavicon;
+
+    private readonly object _adminCredentialsLock = new();
+    private (string Username, string Password)? _adminCredentials;
+    private bool _adminCredentialsLoaded;
+    private Uri? _backendBaseUri;
+
 
     private StatusStrip? _statusStripControl;
     private System.Windows.Forms.Timer? _statusClearTimer;
@@ -259,6 +266,7 @@ public partial class MailViewerForm : Form
                 Host = "127.0.0.1"
             };
             var navigationUri = uriBuilder.Uri;
+            _backendBaseUri = navigationUri;
 
             Log($"InitializeAsync: navigating WebView2 to {navigationUri}");
 
@@ -288,6 +296,177 @@ public partial class MailViewerForm : Form
         }
     }
 
+
+    private void WebView_BasicAuthenticationRequested(object? sender, CoreWebView2BasicAuthenticationRequestedEventArgs e)
+    {
+        var deferral = e.GetDeferral();
+        try
+        {
+            if (_backendBaseUri == null)
+            {
+                Log("[WebView2] BasicAuthenticationRequested but backend URI is unknown");
+                return;
+            }
+
+            if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var requestUri))
+            {
+                Log($"[WebView2] BasicAuthenticationRequested invalid URI '{e.Uri}'");
+                return;
+            }
+
+            if (!IsBackendRequest(requestUri))
+            {
+                Log($"[WebView2] BasicAuthenticationRequested ignored for {requestUri}");
+                return;
+            }
+
+            EnsureAdminCredentialsLoaded();
+            if (_adminCredentials is { } credentials)
+            {
+                e.Response.UserName = credentials.Username;
+                e.Response.Password = credentials.Password;
+                Log("[WebView2] BasicAuthenticationRequested credentials applied");
+            }
+            else
+            {
+                Log("[WebView2] BasicAuthenticationRequested but credentials are not available");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[WebView2] BasicAuthenticationRequested exception {ex}");
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    private bool IsBackendRequest(Uri uri)
+    {
+        if (_backendBaseUri == null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(uri.Scheme, _backendBaseUri.Scheme, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(uri.Host, _backendBaseUri.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return uri.Port == _backendBaseUri.Port;
+    }
+
+    private void EnsureAdminCredentialsLoaded()
+    {
+        if (_adminCredentialsLoaded)
+        {
+            return;
+        }
+
+        lock (_adminCredentialsLock)
+        {
+            if (_adminCredentialsLoaded)
+            {
+                return;
+            }
+
+            _adminCredentials = LoadAdminCredentials();
+            _adminCredentialsLoaded = true;
+
+            if (_adminCredentials is { } credentials)
+            {
+                Log($"EnsureAdminCredentialsLoaded: credentials loaded for user '{credentials.Username}'");
+            }
+            else
+            {
+                Log("EnsureAdminCredentialsLoaded: admin credentials unavailable");
+            }
+        }
+    }
+
+    private static (string Username, string Password)? LoadAdminCredentials()
+    {
+        try
+        {
+            var contentRoot = MailViewerApp.GetDefaultContentRoot();
+            string? username = null;
+            string? password = null;
+
+            ApplyAdminAuthFromFile(Path.Combine(contentRoot, "appsettings.json"), ref username, ref password);
+            ApplyAdminAuthFromFile(Path.Combine(contentRoot, "appsettings.Local.json"), ref username, ref password);
+
+            var envUsername = Environment.GetEnvironmentVariable("MAILVIEWER_AdminAuth__Username");
+            if (!string.IsNullOrWhiteSpace(envUsername))
+            {
+                username = envUsername;
+            }
+
+            var envPassword = Environment.GetEnvironmentVariable("MAILVIEWER_AdminAuth__Password");
+            if (!string.IsNullOrWhiteSpace(envPassword))
+            {
+                password = envPassword;
+            }
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                return null;
+            }
+
+            return (username, password);
+        }
+        catch (Exception ex)
+        {
+            Log($"LoadAdminCredentials: {ex}");
+            return null;
+        }
+    }
+
+    private static void ApplyAdminAuthFromFile(string path, ref string? username, ref string? password)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var document = JsonDocument.Parse(stream);
+
+            if (!document.RootElement.TryGetProperty("AdminAuth", out var adminAuth))
+            {
+                return;
+            }
+
+            if (adminAuth.TryGetProperty("Username", out var usernameProperty) && usernameProperty.ValueKind == JsonValueKind.String)
+            {
+                var candidate = usernameProperty.GetString();
+                if (!string.IsNullOrWhiteSpace(candidate))
+                {
+                    username = candidate;
+                }
+            }
+
+            if (adminAuth.TryGetProperty("Password", out var passwordProperty) && passwordProperty.ValueKind == JsonValueKind.String)
+            {
+                var candidate = passwordProperty.GetString();
+                if (!string.IsNullOrWhiteSpace(candidate))
+                {
+                    password = candidate;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"ApplyAdminAuthFromFile('{path}'): {ex}");
+        }
+    }
 
     private void UpdateStatusBar(string? message)
     {
@@ -638,6 +817,7 @@ public partial class MailViewerForm : Form
             };
             webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
             webView.CoreWebView2.FaviconChanged += (_, _) => _ = RefreshFaviconAsync();
+            webView.CoreWebView2.BasicAuthenticationRequested += WebView_BasicAuthenticationRequested;
             webView.CoreWebView2.OpenDevToolsWindow();
             Log("CoreWebView2InitializationCompleted: DevTools window requested");
             _ = RefreshFaviconAsync();
